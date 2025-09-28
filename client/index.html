@@ -1,13 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OmniCompiler</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Omni Compiler — Run UI</title>
+    <style>
+      html, body, #root { height: 100%; }
+    </style>
+    <script>
+      // Load Monaco Editor via CDN (no npm dependency)
+      // Emits a global 'monaco_ready' event when loaded.
+      (function loadMonacoCDN() {
+        const base = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min'
+        const loader = document.createElement('script')
+        loader.src = base + '/vs/loader.js'
+        loader.async = true
+        loader.onload = function () {
+          // 'require' is provided by loader.js
+          window.require.config({ paths: { vs: base + '/vs' } })
+          window.require(['vs/editor/editor.main'], function () {
+            // expose globally for app usage
+            window.monaco = monaco
+            window.dispatchEvent(new Event('monaco_ready'))
+          })
+        }
+        loader.onerror = function () {
+          console.error('[Monaco] Failed to load loader.js from CDN')
+        }
+        document.head.appendChild(loader)
+      })();
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="h-full">
+    <div id="root" class="h-full"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
