@@ -447,20 +447,13 @@ export default function Run() {
     setRunning(true)
     setOutputTab('run')
     const ts = nowTime()
-
+ 
     const ed = editorRef.current
     const getCode = () => ed?.getModel()?.getValue() || ''
-    let langNow = effectiveLanguage || 'plaintext'
-    if (autoDetect) {
-      try {
-        langNow = await detectLanguageOnce(getCode, activeFileId)
-      } catch {
-        langNow = effectiveLanguage || 'plaintext'
-      }
-    }
+    // Do not call /detect on run; rely on polled value or manual selection
+    const langNow = effectiveLanguage || 'plaintext'
     const payload = buildRunPayload({ fileId: activeFileId, code: getCode(), languageOverride: langNow })
-    // payload ready for backend when wired
-
+ 
     setTimeout(() => {
       setOutputLog(prev => [...prev, `[${ts}] Run simulated with language=${payload.language}`])
       setRunning(false)
@@ -562,7 +555,7 @@ export default function Run() {
     const editor = editorRef.current
     if (!editor || !activeFileId) return
     if (autoDetect) {
-      startPollingForFile(activeFileId, () => editor.getModel()?.getValue() || '', 1500)
+      startPollingForFile(activeFileId, () => editor.getModel()?.getValue() || '', 2000)
     } else {
       stopPollingForFile(activeFileId)
     }
@@ -1064,7 +1057,7 @@ export default function Run() {
                       <div className="font-medium">Manual language</div>
                       <div className="text-xs text-neutral-500">Choose when auto is off</div>
                     </div>
-                    <ManualLanguagePicker value={manualLanguage} onChange={setManualLanguage} />
+                    <ManualLanguagePicker value={manualLanguage} onChange={(id) => setManualLanguage(activeFileId, id)} />
                   </div>
                 )}
               </div>

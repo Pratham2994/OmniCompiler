@@ -10,6 +10,50 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 
 const MONACO_IDS = ['python', 'javascript', 'java', 'cpp', 'go', 'plaintext']
 
+// API base for backend detection
+const API_BASE = (import.meta?.env?.VITE_API_BASE) || 'http://localhost:8000'
+const DETECT_CHUNK = 4000
+
+function normalizeLang(id) {
+  const s = String(id || '').toLowerCase()
+  return MONACO_IDS.includes(s) ? s : 'plaintext'
+}
+
+// Build request body for /detect
+function buildDetectPayload(code = '') {
+  const text = String(code || '')
+  const first = text.slice(0, DETECT_CHUNK)
+  const last = text.slice(Math.max(0, text.length - DETECT_CHUNK))
+  const enc = new TextEncoder()
+  return {
+    first_chunk: first,
+    last_chunk: last,
+    total_len: text.length,
+    n_bytes: enc.encode(text).length,
+    mode: 'auto',
+  }
+}
+
+// Call backend /detect endpoint
+async function postDetect(code = '') {
+  try {
+    const res = await fetch(`${API_BASE}/detect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildDetectPayload(code)),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data && data.status === 'ok' && data.lang) {
+      return normalizeLang(data.lang)
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Heuristic fallback (kept for any offline/edge cases)
 function heuristicDetectLanguage(code = '') {
   const src = String(code || '')
   if (!src.trim()) return 'plaintext'
@@ -37,6 +81,7 @@ export function LanguageProvider({ children }) {
 
   // Poll timers per file
   const pollTimersRef = useRef(new Map()) // fileId -> intervalId
+  const inFlightRef = useRef(new Map())   // fileId -> boolean (prevent overlapping requests)
 
   // Accessors
   const getManualLanguage = (fileId) => {
@@ -90,11 +135,22 @@ export function LanguageProvider({ children }) {
   function startPollingForFile(fileId, getCode, intervalMs = 2000) {
     if (!fileId || typeof getCode !== 'function') return
     stopPollingForFile(fileId)
-    const id = setInterval(() => {
-      const code = getCode() || ''
-      const lang = heuristicDetectLanguage(code)
-      setDetectedLanguage(fileId, lang)
-    }, Math.max(500, Number(intervalMs) || 2000))
+
+    const tick = async () => {
+      if (inFlightRef.current.get(fileId)) return
+      inFlightRef.current.set(fileId, true)
+      try {
+        const code = getCode() || ''
+        const lang = await postDetect(code)
+        if (lang) setDetectedLanguage(fileId, lang)
+      } finally {
+        inFlightRef.current.set(fileId, false)
+      }
+    }
+
+    // Fire once immediately, then every interval
+    tick()
+    const id = setInterval(tick, Math.max(500, Number(intervalMs) || 2000))
     pollTimersRef.current.set(fileId, id)
   }
 
@@ -121,9 +177,9 @@ export function LanguageProvider({ children }) {
 
   // Placeholders for future HTTP/WS
   async function requestDetectFromServer(code, fileId) {
-    const lang = heuristicDetectLanguage(code || '')
-    if (fileId) setDetectedLanguage(fileId, lang)
-    return { fileId, language: lang }
+    const lang = await postDetect(code || '')
+    if (lang && fileId) setDetectedLanguage(fileId, lang)
+    return { fileId, language: lang || null }
   }
   function connectLanguageWs() { return () => {} }
   function disconnectLanguageWs() {}
