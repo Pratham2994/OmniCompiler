@@ -38,7 +38,7 @@ const placeholderByLangId = {
 }
 
 const defaultFiles = [
-  { id: 'f1', name: 'main', language: 'plaintext', content: 'hello!\n' },
+  { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
 
 function useFocusTrap(active) {
@@ -346,8 +346,8 @@ export default function Run() {
       triggerToast('Duplicate name not allowed')
       return
     }
-    const defLangId = 'python'
-    const content = placeholderByLangId[defLangId]
+    const defLangId = 'plaintext'
+    const content = ''
     const id = `f${Math.random().toString(36).slice(2, 8)}`
     const newFile = { id, name: clean, language: defLangId, content }
     setFiles(prev => [...prev, newFile])
@@ -371,8 +371,8 @@ export default function Run() {
       triggerToast('Duplicate name not allowed')
       return
     }
-    const defLangId = 'python'
-    const content = placeholderByLangId[defLangId]
+    const defLangId = 'plaintext'
+    const content = ''
     const id = `f${Math.random().toString(36).slice(2, 8)}`
     const newFile = { id, name: clean, language: defLangId, content }
     setFiles(prev => [...prev, newFile])
@@ -400,8 +400,8 @@ export default function Run() {
       triggerToast('Duplicate name not allowed')
       return
     }
-    const defLangId = 'python'
-    const content = placeholderByLangId[defLangId]
+    const defLangId = 'plaintext'
+    const content = ''
     const id = `f${Math.random().toString(36).slice(2, 8)}`
     const newFile = { id, name: clean, language: defLangId, content }
     setFiles(prev => [...prev, newFile])

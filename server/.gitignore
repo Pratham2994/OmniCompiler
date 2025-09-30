@@ -11,3 +11,6 @@ ENV/
 
 
 
+
+# Local environment
+.env

@@ -20,18 +20,22 @@ function normalizeLang(id) {
 }
 
 // Build request body for /detect
-function buildDetectPayload(code = '') {
+function buildDetectPayload(code = '', moreChunks = null) {
   const text = String(code || '')
   const first = text.slice(0, DETECT_CHUNK)
   const last = text.slice(Math.max(0, text.length - DETECT_CHUNK))
   const enc = new TextEncoder()
-  return {
+  const payload = {
     first_chunk: first,
     last_chunk: last,
     total_len: text.length,
     n_bytes: enc.encode(text).length,
     mode: 'auto',
   }
+  if (Array.isArray(moreChunks) && moreChunks.length) {
+    payload.more_chunks = moreChunks
+  }
+  return payload
 }
 
 // Call backend /detect endpoint
@@ -51,6 +55,54 @@ async function postDetect(code = '') {
   } catch {
     return null
   }
+}
+
+// Detect with server, honoring need_more request_ranges (retry)
+async function detectFromServerWithRetries(code = '', maxRounds = 3) {
+  let rounds = 0
+  let moreChunks = null
+  const text = String(code || '')
+  while (rounds < maxRounds) {
+    const body = buildDetectPayload(text, moreChunks)
+    try {
+      const res = await fetch(`${API_BASE}/detect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) break
+      const data = await res.json()
+      if (data?.status === 'ok' && data?.lang) {
+        return {
+          status: 'ok',
+          lang: normalizeLang(data.lang),
+          confidence: data?.confidence ?? null,
+          source: data?.source ?? null,
+        }
+      }
+      if (data?.status === 'need_more' && Array.isArray(data?.request_ranges) && data.request_ranges.length) {
+        const chunks = []
+        for (const r of data.request_ranges) {
+          const s = Number(r?.start ?? 0)
+          const e = (r?.end != null)
+            ? Number(r.end)
+            : (r?.len != null ? s + Number(r.len) : Math.min(s + DETECT_CHUNK, text.length))
+          const start = Math.max(0, s)
+          const end = Math.max(start, Math.min(text.length, e))
+          const dataStr = text.slice(start, end)
+          chunks.push({ start, data: dataStr })
+        }
+        moreChunks = chunks
+        rounds += 1
+        continue
+      }
+      // any other status or missing fields
+      break
+    } catch {
+      break
+    }
+  }
+  return { status: 'error', lang: null, confidence: null, source: null }
 }
 
 // Heuristic fallback (kept for any offline/edge cases)
@@ -74,6 +126,7 @@ export function LanguageProvider({ children }) {
   // Per-file maps
   const [manualByFile, setManualByFile] = useState(() => ({}))          // { [fileId]: monacoId }
   const [detectedByFile, setDetectedByFile] = useState(() => ({}))      // { [fileId]: monacoId }
+  const [lastMetaByFile, setLastMetaByFile] = useState(() => ({}))      // { [fileId]: { status, lang, confidence, source } }
 
   // Version bump to trigger subscribers when any per-file value changes
   const [version, setVersion] = useState(0)
@@ -97,6 +150,9 @@ export function LanguageProvider({ children }) {
       ? (getDetectedLanguage(fileId) || 'plaintext')
       : (getManualLanguage(fileId) || 'plaintext')
     return MONACO_IDS.includes(raw) ? raw : 'plaintext'
+  }
+  const getLastDetectMeta = (fileId) => {
+    return (fileId && lastMetaByFile[fileId]) || null
   }
 
   // Setters
@@ -141,8 +197,11 @@ export function LanguageProvider({ children }) {
       inFlightRef.current.set(fileId, true)
       try {
         const code = getCode() || ''
-        const lang = await postDetect(code)
-        if (lang) setDetectedLanguage(fileId, lang)
+        const res = await detectFromServerWithRetries(code, 3)
+        if (res?.lang) {
+          setDetectedLanguage(fileId, res.lang)
+          setLastMetaByFile(prev => ({ ...prev, [fileId]: { status: res.status, lang: res.lang, confidence: res.confidence, source: res.source } }))
+        }
       } finally {
         inFlightRef.current.set(fileId, false)
       }
@@ -177,9 +236,12 @@ export function LanguageProvider({ children }) {
 
   // Placeholders for future HTTP/WS
   async function requestDetectFromServer(code, fileId) {
-    const lang = await postDetect(code || '')
-    if (lang && fileId) setDetectedLanguage(fileId, lang)
-    return { fileId, language: lang || null }
+    const res = await detectFromServerWithRetries(code || '', 3)
+    if (res?.lang && fileId) {
+      setDetectedLanguage(fileId, res.lang)
+      setLastMetaByFile(prev => ({ ...prev, [fileId]: { status: res.status, lang: res.lang, confidence: res.confidence, source: res.source } }))
+    }
+    return { fileId, language: res?.lang || null, status: res?.status ?? 'error', confidence: res?.confidence ?? null, source: res?.source ?? null }
   }
   function connectLanguageWs() { return () => {} }
   function disconnectLanguageWs() {}
@@ -193,6 +255,7 @@ export function LanguageProvider({ children }) {
     getManualLanguage,
     getDetectedLanguage,
     getEffectiveLanguage,
+    getLastDetectMeta,
     // per-file setters
     setManualLanguage,
     setDetectedLanguage,
