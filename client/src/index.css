@@ -1,1 +1,198 @@
 @import "tailwindcss";
+
+/* Omni Compiler — Design Tokens (Light/Dark) */
+:root {
+  --oc-bg: #f6f6f8;
+  --oc-fg: #0b0d12;
+  --oc-surface: #ffffff;
+  --oc-surface-2: #f3f4f6;
+  --oc-border: rgba(17,17,17,0.08);
+
+  --oc-primary-500: #8b5cf6; /* light purple */
+  --oc-primary-600: #7c3aed; /* vibrant purple */
+  --oc-primary-700: #6d28d9; /* dark purple */
+
+  --oc-muted: #6b7280;
+  --oc-ring: var(--oc-primary-500);
+
+  --oc-success: #22c55e;
+  --oc-danger: #ef4444;
+}
+
+.dark {
+  --oc-bg: #0b0d12;
+  --oc-fg: #e5e7eb;
+  --oc-surface: #0f121a;
+  --oc-surface-2: #10141d;
+  --oc-border: rgba(255,255,255,0.10);
+
+  --oc-primary-500: #a78bfa;
+  --oc-primary-600: #8b5cf6;
+  --oc-primary-700: #7c3aed;
+
+  --oc-muted: #9ca3af;
+  --oc-ring: var(--oc-primary-600);
+}
+
+/* App background/text */
+html, body, #root {
+  background-color: var(--oc-bg);
+  color: var(--oc-fg);
+}
+
+/* Cards / Panels */
+.oc-card {
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+/* Buttons */
+.oc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid var(--oc-border);
+  background: var(--oc-surface);
+  color: var(--oc-fg);
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 50ms ease;
+}
+.oc-btn:hover { background: var(--oc-surface-2); }
+.oc-btn:active { transform: translateY(0.5px); }
+.oc-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--oc-ring); }
+
+.oc-btn-primary {
+  border: 1px solid transparent;
+  background-image: linear-gradient(135deg, var(--oc-primary-600), var(--oc-primary-700));
+  color: white;
+  box-shadow: 0 1px 2px rgba(124,58,237,0.25);
+}
+.oc-btn-primary:hover { filter: brightness(1.05); }
+.oc-btn-primary:active { transform: translateY(0.5px); }
+.oc-btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.oc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.125rem;
+  width: 2.125rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--oc-border);
+  background: var(--oc-surface);
+  color: var(--oc-fg);
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 50ms ease;
+}
+.oc-icon-btn:hover { background: var(--oc-surface-2); }
+.oc-icon-btn:active { transform: translateY(0.5px); }
+.oc-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--oc-ring); }
+
+/* Inputs */
+.oc-input {
+  height: 2.5rem;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--oc-border);
+  background: var(--oc-surface-2);
+  color: var(--oc-fg);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+.oc-input::placeholder { color: var(--oc-muted); }
+.oc-input:focus { outline: none; border-color: var(--oc-primary-600); box-shadow: 0 0 0 2px var(--oc-ring); }
+
+/* Chips / badges */
+.oc-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
+  background: var(--oc-surface-2);
+  border: 1px solid var(--oc-border);
+  color: var(--oc-fg);
+}
+
+/* Dividers / borders */
+.oc-divider { border-color: var(--oc-border); }
+
+/* Output console colors */
+.oc-console {
+  background: #0a0a0a;
+  color: #86efac;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Toast */
+.oc-toast {
+  border-radius: 0.5rem;
+  background: var(--oc-fg);
+  color: var(--oc-bg);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+
+/* 1) Ensure no width transition animations on the code/output panes (safety net) */
+#oc-workspace section[style] { transition: none !important; }
+
+/* Monaco Find widget — minimal, sane alignment and spacing (cleaned up) */
+.monaco-editor .find-widget { transition: none !important; }
+.monaco-editor .find-widget .monaco-findInput { margin-right: 8px !important; }
+.monaco-editor .find-widget .monaco-findInput .controls,
+.monaco-editor .find-widget .find-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px;
+}
+.monaco-editor .find-widget .codicon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+.monaco-editor .find-widget .codicon.codicon-close {
+  position: relative !important;
+  top: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+.monaco-editor .find-widget .matchesCount {
+  margin: 0 8px !important;
+  padding: 0 !important;
+}
+.monaco-editor .find-widget,
+.monaco-editor .find-widget .matchesCount,
+.monaco-editor .find-widget .monaco-inputbox .input {
+  line-height: normal !important;
+}
+.monaco-editor .find-widget .message {
+  margin: 0 8px !important;
+  padding: 0 !important;
+}
+/* CTA (Run) button — solid, consistent purple; subtle hover/press */
+.oc-btn-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid transparent;
+  background: var(--oc-primary-600);
+  color: #fff;
+  border-radius: 9999px; /* allow rounded-full buttons */
+  box-shadow:
+    0 4px 14px rgba(124,58,237,0.25),
+    inset 0 -1px 0 rgba(0,0,0,0.15);
+  transition: background-color 150ms ease, box-shadow 150ms ease, transform 50ms ease, filter 150ms ease;
+}
+.oc-btn-cta:hover { background: var(--oc-primary-700); filter: brightness(1.02); }
+.oc-btn-cta:active { transform: translateY(0.5px); box-shadow: 0 2px 10px rgba(124,58,237,0.22), inset 0 0 0 rgba(0,0,0,0.15); }
+.oc-btn-cta:disabled { opacity: 0.7; cursor: not-allowed; }

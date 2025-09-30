@@ -1,18 +1,15 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
-import hashlib, re, textwrap, math, json, sys
-from typing import List, Dict, Any, Optional
+import re, textwrap, json
 from pygments.lexers import guess_lexer
 from pygments.util import ClassNotFound
 
 
 # -------------------------
-# Config: change this path
+# Config: server defaults
 # -------------------------
-FILE_PATH = "code.txt"   # <-- put your test .txt here
-N_BYTES   = 32 * 1024             # per edge chunk
 PRINT_SNIPPETS = False            # True to print assembled snippet (truncated)
-LOG_VERBOSE    = True             # True to log detailed internals
+LOG_VERBOSE    = False            # True to log detailed internals
 SNIPPET_PRINT_WIDTH = 1500
 
 def log(*args, **kwargs):
@@ -176,6 +173,12 @@ def _pygments_guess(snippet: str) -> Optional[str]:
         log(f"[pygments] mapped: {mapped}")
     return mapped
 
+def _used_chunks(req: Dict[str, Any]) -> List[str]:
+    uc = ["first", "last"]
+    if req.get("more_chunks"):
+        uc.append("more")
+    return uc
+
 # --- Replace your existing server_detect with this version ---
 
 def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
@@ -186,7 +189,7 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
     total_len = int(request.get("total_len", 0))
 
     if forced:
-        resp = {"status":"ok","lang":forced,"confidence":1.0,"source":"user","used_chunks":["first","last"]}
+        resp = {"status":"ok","lang":forced,"confidence":1.0,"source":"user","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
@@ -203,7 +206,7 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
         # No signal at all → try pygments or unknown
         pg = _pygments_guess(snippet)
         if pg:
-            resp = {"status":"ok","lang":pg,"confidence":0.70,"source":"pygments","used_chunks":["first","last","more" if request.get("more_chunks") else ""]}
+            resp = {"status":"ok","lang":pg,"confidence":0.70,"source":"pygments","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         # verify? if file is small, no more to ask → unknown
@@ -213,13 +216,13 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
                 resp = {"status":"need_more","reason":"no_signal","request_ranges":[{"start": int(mid_start), "len": 8192}]}
                 log_json("server.response", resp)
                 return resp
-        resp = {"status":"ok","lang":"unknown","confidence":0.20,"source":"fallback","used_chunks":["first","last"]}
+        resp = {"status":"ok","lang":"unknown","confidence":0.20,"source":"fallback","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
     # strong clear win
     if top_score >= 3 and top_score - sec_score >= 2:
-        resp = {"status":"ok","lang":top_lang,"confidence":0.90,"source":"fingerprints","used_chunks":["first","last","more" if request.get("more_chunks") else ""]}
+        resp = {"status":"ok","lang":top_lang,"confidence":0.90,"source":"fingerprints","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
@@ -228,11 +231,11 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
         log(f"[conflict] ambiguous between {top_lang} and {sec_lang} at score {top_score}=={sec_score}")
         policy = _conflict_policy(snippet, top_lang, sec_lang)
         if policy == "prefer_top":
-            resp = {"status":"ok","lang":top_lang,"confidence":0.80,"source":"fingerprints_tiebreak","used_chunks":["first","last","more" if request.get("more_chunks") else ""]}
+            resp = {"status":"ok","lang":top_lang,"confidence":0.80,"source":"fingerprints_tiebreak","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         if policy == "prefer_second":
-            resp = {"status":"ok","lang":sec_lang,"confidence":0.80,"source":"fingerprints_tiebreak","used_chunks":["first","last","more" if request.get("more_chunks") else ""]}
+            resp = {"status":"ok","lang":sec_lang,"confidence":0.80,"source":"fingerprints_tiebreak","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         # No policy match → ask for more in verify; else unknown/low
@@ -243,12 +246,12 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
                 log_json("server.response", resp)
                 return resp
             # tiny file: cannot request more → unknown
-            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks":["first","last"]}
+            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         else:
             # in AUTO mode: return low-confidence unknown (don’t mislead the badge)
-            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks":["first","last"]}
+            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
 
@@ -259,112 +262,14 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
         if pg == top_lang and top_score >= 2:
             conf = 0.80
             if LOG_VERBOSE: log("[decision] regex and pygments align; lifting confidence.")
-        resp = {"status":"ok","lang":pg,"confidence":conf,"source":"pygments","used_chunks":["first","last","more" if request.get("more_chunks") else ""]}
+        resp = {"status":"ok","lang":pg,"confidence":conf,"source":"pygments","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
     # fallback: weak best
-    resp = {"status":"ok","lang":top_lang,"confidence":0.50,"source":"fallback","used_chunks":["first","last"]}
+    resp = {"status":"ok","lang":top_lang,"confidence":0.50,"source":"fallback","used_chunks": _used_chunks(request)}
     log_json("server.response", resp)
     return resp
-
-
-# -------------------------
-# Client-side driver (simulates your frontend)
-# -------------------------
-
-def read_file_bytes(path: str) -> bytes:
-    with open(path, "rb") as f:
-        return f.read()
-
-def to_text(b: bytes) -> str:
-    return b.decode("utf-8", errors="ignore")
-
-def make_edge_chunks(full: bytes, n_bytes: int):
-    if len(full) <= n_bytes:
-        first = full
-        last = b""
-    else:
-        first = full[:n_bytes]
-        last  = full[-n_bytes:]
-    return to_text(first), to_text(last)
-
-def sha256_hex(b: bytes) -> str:
-    return hashlib.sha256(b).hexdigest()
-
-def client_call_detect(full_bytes: bytes, mode: str = "auto", forced_lang: Optional[str] = None, n_bytes: int = N_BYTES):
-    total_len = len(full_bytes)
-    content_hash = sha256_hex(full_bytes)
-    first_txt, last_txt = make_edge_chunks(full_bytes, n_bytes)
-
-    req = {
-        "first_chunk": first_txt,
-        "last_chunk": last_txt,
-        "more_chunks": None,
-        "total_len": total_len,
-        "n_bytes": n_bytes,
-        "mode": mode,
-        "forced_lang": forced_lang,
-        "content_sha256": content_hash
-    }
-    log("\n================ CLIENT → SERVER (initial) ================")
-    resp = server_detect(req)
-
-    if resp.get("status") == "need_more":
-        log("\n[client] Server requested extra ranges → collecting slices...")
-        more = []
-        for r in resp["request_ranges"]:
-            start = max(0, min(total_len, int(r["start"])))
-            end   = max(start, min(total_len, start + int(r["len"])))
-            more_bytes = full_bytes[start:end]
-            more.append({"start": start, "data": to_text(more_bytes)})
-            log(f"[client] Collected slice start={start}, len={end-start} bytes")
-
-        req["more_chunks"] = more
-        log("\n================ CLIENT → SERVER (replay with slices) ================")
-        resp = server_detect(req)
-
-    log("\n================ FINAL RESULT ================")
-    log_json("detect.result", resp)
-    return resp
-
-# -------------------------
-# Run demo on your FILE_PATH
-# -------------------------
-
-if __name__ == "__main__":
-    try:
-        full = read_file_bytes(FILE_PATH)
-    except FileNotFoundError:
-        demo = b"""
-// demo: change FILE_PATH to your code.txt
-#include <iostream>
-using namespace std;
-int main(){ std::cout << "Hello"; }
-"""
-        with open(FILE_PATH, "wb") as f:
-            f.write(demo)
-        full = demo
-        print(f"[INFO] {FILE_PATH} not found. Wrote a demo C++ snippet to that path.\n")
-
-    print(f"File: {FILE_PATH}")
-    print(f"Total bytes: {len(full)} | Using N_BYTES per edge: {N_BYTES}")
-
-    print("\n\n############### MODE: AUTO (typing) ###############")
-    auto_resp = client_call_detect(full, mode="auto", n_bytes=N_BYTES)
-
-    print("\n\n############### MODE: VERIFY (run) ###############")
-    verify_resp = client_call_detect(full, mode="verify", n_bytes=N_BYTES)
-
-    def pretty(r):
-        if r.get("status") != "ok":
-            return "status=" + r.get("status","?")
-        return f"{r['lang']}  | conf={r['confidence']:.2f} | source={r['source']}"
-
-    print("\nSummary:")
-    print("AUTO   →", pretty(auto_resp))
-    print("VERIFY →", pretty(verify_resp))
-
 
 
 def detect(payload: Dict[str, Any]) -> Dict[str, Any]:

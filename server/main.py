@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal, Dict, Any
-from server.detector import detect as run_detect
+from detector import detect as run_detect
 
 
 app= FastAPI(title= "OmniCompiler")
