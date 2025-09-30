@@ -29,34 +29,48 @@ def log_json(title, obj):
 # Precompiled fingerprints (strong=2 pts; weak=1 pt)
 FP = {
     "go": [
-        re.compile(r"^\s*package\s+main\b", re.M),
-        re.compile(r"^\s*func\s+main\s*\(", re.M),
+        re.compile(r"^\s*package\s+\w+\b", re.M),
+        re.compile(r"^\s*func\s+\w+\s*\(", re.M),
         re.compile(r"^\s*import\s*\(", re.M),
+        re.compile(r"^\s*import\s+\"[^\n\"]+\"\s*", re.M),
+        re.compile(r"\bfmt\.(?:Print|Printf|Println|Fprint|Fprintf|Fprintln)\s*\("),
     ],
     "java": [
         re.compile(r"^\s*package\s+[\w.]+;", re.M),
         re.compile(r"\bpublic\s+class\b"),
         re.compile(r"\bpublic\s+static\s+void\s+main\s*\("),
-        re.compile(r"^\s*import\s+[\w.]+;", re.M),
+        re.compile(r"^\s*import\s+(?:static\s+)?[\w.]+(?:\.\*)?\s*;", re.M),
+        re.compile(r"\bSystem\.out\.println\s*\("),
+        re.compile(r"@\s*Override\b"),
     ],
     "cpp": [
-        re.compile(r"#\s*include\s*<[^>]+>"),
+        re.compile(r"^\s*#\s*include\s*[<\"][^>\"\n]+[>\"]", re.M),
         re.compile(r"\busing\s+namespace\s+std\s*;"),
         re.compile(r"\bstd::\w+"),
+        re.compile(r"\bint\s+main\s*\("),
+        re.compile(r"\bcout\s*<<"),
+        re.compile(r"\bcin\s*>>"),
+        re.compile(r"\btemplate\s*<"),
     ],
     "python": [
         re.compile(r"^\s*def\s+\w+\s*\(", re.M),
         re.compile(r"^\s*class\s+\w+\s*:", re.M),
         re.compile(r"^\s*from\s+\w+(?:\.\w+)*\s+import\s+", re.M),
-        re.compile(r"^\s*import\s+\w+", re.M),
+        re.compile(r"^\s*import\s+[A-Za-z_][\w.]*(?:\s*,\s*[A-Za-z_][\w.]*)*\s*(?:#.*)?$", re.M),
         re.compile(r"^\s*if\s+__name__\s*==\s*['\"]__main__['\"]\s*:", re.M),
+        re.compile(r"^\s*#!.*python[23]?\b", re.M),
+        re.compile(r"^\s*async\s+def\s+\w+\s*\(", re.M),
+        re.compile(r"^\s*print\s*\(", re.M),
     ],
     "javascript": [
         re.compile(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", re.M),
         re.compile(r"\bexport\s+(default|const|function|class)\b"),
         re.compile(r"\b(module\.exports|require\s*\()\b"),
         re.compile(r"\bconsole\.log\s*\("),
-        re.compile(r"=>"),  # weak
+        re.compile(r"\bconsole\.(?:warn|error)\s*\("),
+        re.compile(r"\bdocument\.getElementById\s*\("),
+        re.compile(r"\bwindow\."),
+        re.compile(r"^\s*(?:const|let|var)\s+\w+\s*=\s*", re.M),
     ],
 }
 LANGS = list(FP.keys())
@@ -77,8 +91,9 @@ def _conflict_policy(snippet: str, top_lang: str, second_lang: str) -> str:
     Return one of: 'unknown', 'prefer_top', 'prefer_second'
     You can encode any bias rules here. We’ll stay conservative.
     """
-    # Example conservative policy: if Python & JS both hit strongly → unknown
     pair = {top_lang, second_lang}
+
+    # Python vs JavaScript
     if pair == {"python", "javascript"}:
         # If Python has a main guard or from-imports, it's likely Python-only
         if "__name__" in snippet or re.search(r"^\s*from\s+\w+", snippet, re.M):
@@ -88,6 +103,15 @@ def _conflict_policy(snippet: str, top_lang: str, second_lang: str) -> str:
            or re.search(r"\bexport\s+(default|const|function|class)\b", snippet):
             return "prefer_top" if top_lang == "javascript" else "prefer_second"
         return "unknown"
+
+    # Java vs Python: semicoloned imports and @Override favor Java; 'from ... import' favors Python
+    if pair == {"java", "python"}:
+        if re.search(r"^\s*import\s+[\w.]+\s*;", snippet, re.M) or "@Override" in snippet:
+            return "prefer_top" if top_lang == "java" else "prefer_second"
+        if re.search(r"^\s*from\s+\w+(?:\.\w+)*\s+import\s+", snippet, re.M):
+            return "prefer_top" if top_lang == "python" else "prefer_second"
+        return "unknown"
+
     # For other pairs: default to unknown on ties
     return "unknown"
 
@@ -129,7 +153,20 @@ def _score_fingerprints(snippet: str) -> Dict[str, int]:
         for r in regs:
             m = r.search(snippet)
             if m:
-                pts = 1 if "=>" in r.pattern else 2
+                pat = r.pattern
+                # Mark certain cues as "weak" to avoid false positives on plain text or minimal fragments
+                weak = False
+                if "=>" in pat:
+                    weak = True
+                # C++ weak cues
+                if "std::" in pat:
+                    weak = True
+                if "template\\s*<" in pat:
+                    weak = True
+                # JavaScript weak cues: bare const|let|var assignment without other JS signals
+                if "(?:const|let|var)" in pat and "=" in pat:
+                    weak = True
+                pts = 1 if weak else 2
                 s += pts
                 if LOG_VERBOSE:
                     # Show a tiny excerpt around the match
@@ -162,10 +199,16 @@ def _pygments_guess(snippet: str) -> Optional[str]:
     if LOG_VERBOSE:
         log(f"[pygments] raw alias/name: {alias}")
     MAP = {
-        "python":"python", "py":"python",
-        "javascript":"javascript", "js":"javascript", "node":"javascript",
+        # Python family
+        "python":"python", "py":"python", "python3":"python", "python2":"python", "py3":"python", "ipython":"python", "pycon":"python",
+        # JavaScript/TypeScript family (collapsed to 'javascript')
+        "javascript":"javascript", "js":"javascript", "node":"javascript", "nodejs":"javascript", "ecmascript":"javascript",
+        "jsx":"javascript", "mjs":"javascript", "cjs":"javascript", "typescript":"javascript", "ts":"javascript", "tsx":"javascript",
+        # Java
         "java":"java",
-        "cpp":"cpp", "c++":"cpp",
+        # C++
+        "cpp":"cpp", "c++":"cpp", "cxx":"cpp", "arduino":"cpp",
+        # Go
         "go":"go", "golang":"go",
     }
     mapped = MAP.get(alias)
@@ -178,6 +221,43 @@ def _used_chunks(req: Dict[str, Any]) -> List[str]:
     if req.get("more_chunks"):
         uc.append("more")
     return uc
+def _looks_like_plain_trap(snippet: str) -> bool:
+    """
+    Heuristics to avoid false positives by recognizing tiny, single-cue snippets
+    that are likely prose or incomplete code fragments.
+    Prefer returning plain text when these patterns occur without stronger cues.
+    """
+    # keep only non-empty lines for quick checks
+    lines = [ln for ln in snippet.splitlines() if ln.strip()]
+    short = len(lines) <= 3
+    # Java: single import or lone @Override without any class/public/static/main/println
+    if re.fullmatch(r"\s*import\s+(?:static\s+)?[\w.]+(?:\.\*)?\s*;.*", (lines[0] if lines else ""), flags=0) and \
+       not re.search(r"\b(class|public|static|System\.out\.println)\b", snippet):
+        return True
+    if "@Override" in snippet and not re.search(r"\b(class|public)\b", snippet):
+        return True
+    # C++: only template&lt;...> or std:: symbol mention, no include/main/cout/cin/namespace
+    if short and (re.search(r"\btemplate\s*<", snippet) or re.search(r"\bstd::\w+", snippet)) and \
+       not re.search(r"^\s*#\s*include", snippet, re.M) and \
+       not re.search(r"\bint\s+main\s*\(", snippet) and \
+       not re.search(r"\busing\s+namespace\s+std\s*;", snippet) and \
+       not re.search(r"\bcout\s*<<|\bcin\s*>>", snippet):
+        return True
+    # JavaScript: only const/let/var assignment without other JS cues (import/export/require/console/dom)
+    if short and re.search(r"^\s*(?:const|let|var)\s+\w+\s*=", snippet, re.M) and \
+       not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and \
+       not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and \
+       not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and \
+       not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and \
+       not re.search(r"\bdocument\.getElementById\s*\(", snippet) and \
+       not re.search(r"\bwindow\.", snippet):
+        return True
+    # Go: only package line, no import nor func
+    if short and re.search(r"^\s*package\s+\w+\s*$", snippet, re.M) and \
+       not re.search(r"^\s*import\b", snippet, re.M) and \
+       not re.search(r"^\s*func\b", snippet, re.M):
+        return True
+    return False
 
 # --- Replace your existing server_detect with this version ---
 
@@ -197,13 +277,41 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
 
     # Heuristic regex
     scores = _score_fingerprints(snippet)
+
+    # Suppress weak JavaScript matches caused by prose "=>" without any stronger JS cues
+    # This avoids plain text/markdown being mislabeled as JS due to the weak arrow signal.
+    if scores.get("javascript", 0) <= 1 and "=>" in snippet:
+        if not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and \
+           not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and \
+           not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and \
+           not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and \
+           not re.search(r"\bdocument\.getElementById\s*\(", snippet) and \
+           not re.search(r"\bwindow\.", snippet) and \
+           not re.search(r"^\s*(?:const|let|var)\s+\w+\s*=", snippet, re.M):
+            scores["javascript"] = 0
+
+    # Plain-text trap: if snippet looks like a known "single-cue" fragment and regex evidence is weak, classify as plain
+    if _looks_like_plain_trap(snippet):
+        ranked_vals = sorted(scores.values(), reverse=True)
+        top_val = ranked_vals[0] if ranked_vals else 0
+        sec_val = ranked_vals[1] if len(ranked_vals) > 1 else 0
+        if top_val <= 2 and sec_val <= 1:
+            resp = {"status":"ok","lang":"plain","confidence":0.25,"source":"plain_trap","used_chunks": _used_chunks(request)}
+            log_json("server.response", resp)
+            return resp
+
     (top_lang, top_score), (sec_lang, sec_score), ranked = _best_two(scores)
     if LOG_VERBOSE:
         log(f"[decision] regex top: {top_lang}={top_score}, second: {sec_lang}={sec_score}")
 
     # --- NEW: conflict handling for ties/near-ties ---
     if top_score == 0:
-        # No signal at all → try pygments or unknown
+        # If this is a known plain-text trap, prefer plain over a risky pygments guess
+        if _looks_like_plain_trap(snippet):
+            resp = {"status":"ok","lang":"plain","confidence":0.25,"source":"plain_trap","used_chunks": _used_chunks(request)}
+            log_json("server.response", resp)
+            return resp
+        # No signal at all → try pygments or plain
         pg = _pygments_guess(snippet)
         if pg:
             resp = {"status":"ok","lang":pg,"confidence":0.70,"source":"pygments","used_chunks": _used_chunks(request)}
@@ -216,7 +324,7 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
                 resp = {"status":"need_more","reason":"no_signal","request_ranges":[{"start": int(mid_start), "len": 8192}]}
                 log_json("server.response", resp)
                 return resp
-        resp = {"status":"ok","lang":"unknown","confidence":0.20,"source":"fallback","used_chunks": _used_chunks(request)}
+        resp = {"status":"ok","lang":"plain","confidence":0.20,"source":"fallback","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
@@ -246,12 +354,12 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
                 log_json("server.response", resp)
                 return resp
             # tiny file: cannot request more → unknown
-            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
+            resp = {"status":"ok","lang":"plain","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         else:
             # in AUTO mode: return low-confidence unknown (don’t mislead the badge)
-            resp = {"status":"ok","lang":"unknown","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
+            resp = {"status":"ok","lang":"plain","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
 
