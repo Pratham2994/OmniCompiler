@@ -77,7 +77,7 @@ export function ManualLanguagePicker({ value, onChange }) {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="h-9 min-w-[12rem] px-3 inline-flex items-center justify-between rounded-md border border-white/10 bg-white/10 text-neutral-100 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        className="h-9 min-w-[12rem] px-3 inline-flex items-center justify-between rounded-md border border-[var(--oc-border)] bg-[var(--oc-surface)] text-[var(--oc-fg)] hover:bg-[var(--oc-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)]"
         aria-haspopup="listbox"
         aria-expanded={open ? 'true' : 'false'}
         onClick={() => setOpen(v => !v)}
@@ -89,7 +89,7 @@ export function ManualLanguagePicker({ value, onChange }) {
       {open && (
         <ul
           role="listbox"
-          className="absolute z-10 right-0 mt-1 w-48 max-h-60 overflow-auto rounded-md border border-white/10 bg-[#0f121a] text-neutral-100 shadow-xl"
+          className="absolute z-10 right-0 mt-1 w-48 max-h-60 overflow-auto rounded-md border border-[var(--oc-border)] bg-[var(--oc-surface)] text-[var(--oc-fg)] shadow-xl"
         >
           {options.map(opt => (
             <li key={opt.id}>
@@ -97,7 +97,7 @@ export function ManualLanguagePicker({ value, onChange }) {
                 role="option"
                 aria-selected={value === opt.id}
                 onClick={() => { onChange(opt.id); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 ${value === opt.id ? 'bg-white/10' : ''}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--oc-surface-2)] ${value === opt.id ? 'bg-[var(--oc-surface-2)]' : ''}`}
               >
                 {opt.label}
               </button>

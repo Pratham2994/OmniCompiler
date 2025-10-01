@@ -14,12 +14,14 @@
 
   --oc-muted: #6b7280;
   --oc-ring: var(--oc-primary-500);
+  --oc-on-primary: #ffffff; /* readable foreground on primary in light */
 
   --oc-success: #22c55e;
   --oc-danger: #ef4444;
 }
 
-.dark {
+/* Dark (VS Code Dark+) — also applies when Run page sets theme-dark */
+.dark, .theme-dark {
   --oc-bg: #0b0d12;
   --oc-fg: #e5e7eb;
   --oc-surface: #0f121a;
@@ -32,6 +34,30 @@
 
   --oc-muted: #9ca3af;
   --oc-ring: var(--oc-primary-600);
+  --oc-on-primary: #ffffff; /* readable foreground on purple in dark */
+}
+
+/* Light (VS Code Light+) — uses :root defaults; class present for clarity */
+.theme-light {
+  /* Intentionally empty: falls back to :root tokens */
+}
+
+/* High Contrast (VS Code High Contrast) */
+.theme-hc {
+  --oc-bg: #000000;
+  --oc-fg: #ffffff;
+  --oc-surface: #0b0b0b;
+  --oc-surface-2: #141414;
+  --oc-border: rgba(255,255,255,0.35);
+
+  /* Accent with strong yellow similar to HC emphasis */
+  --oc-primary-500: #f5d90a;
+  --oc-primary-600: #f0c000;
+  --oc-primary-700: #e0a800;
+
+  --oc-muted: #e5e7eb;
+  --oc-ring: var(--oc-primary-600);
+  --oc-on-primary: #000000; /* black text on yellow for true HC */
 }
 
 /* App background/text */
@@ -71,7 +97,7 @@ html, body, #root {
 .oc-btn-primary {
   border: 1px solid transparent;
   background-image: linear-gradient(135deg, var(--oc-primary-600), var(--oc-primary-700));
-  color: white;
+  color: var(--oc-on-primary);
   box-shadow: 0 1px 2px rgba(124,58,237,0.25);
 }
 .oc-btn-primary:hover { filter: brightness(1.05); }
@@ -186,7 +212,7 @@ html, body, #root {
   gap: 0.25rem;
   border: 1px solid transparent;
   background: var(--oc-primary-600);
-  color: #fff;
+  color: var(--oc-on-primary);
   border-radius: 9999px; /* allow rounded-full buttons */
   box-shadow:
     0 4px 14px rgba(124,58,237,0.25),
@@ -196,3 +222,22 @@ html, body, #root {
 .oc-btn-cta:hover { background: var(--oc-primary-700); filter: brightness(1.02); }
 .oc-btn-cta:active { transform: translateY(0.5px); box-shadow: 0 2px 10px rgba(124,58,237,0.22), inset 0 0 0 rgba(0,0,0,0.15); }
 .oc-btn-cta:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Theming helpers */
+.oc-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--oc-ring);
+}
+
+/* Vertical splitter hover color respects theme primary */
+.oc-splitter:hover {
+  /* Use color-mix to produce a translucent hover color from primary */
+  background: color-mix(in srgb, var(--oc-primary-600) 28%, transparent);
+}
+
+/* Selected listrow/pill using theme primary tint (works for all themes incl HC) */
+.oc-selected {
+  background: color-mix(in srgb, var(--oc-primary-600) 16%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--oc-primary-600) 55%, transparent);
+  outline-offset: 0;
+}
