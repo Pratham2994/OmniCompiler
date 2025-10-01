@@ -251,6 +251,7 @@ export function LanguageProvider({ children }) {
     autoDetect,
     setAutoDetect,
     version,
+    apiBase: API_BASE,
     // per-file getters
     getManualLanguage,
     getDetectedLanguage,

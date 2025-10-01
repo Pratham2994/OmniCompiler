@@ -3,6 +3,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Ensure subprocess support on Windows (needed for asyncio.create_subprocess_exec)
+try:
+    import asyncio  # noqa: E402
+    if os.name == "nt":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # supports subprocess
+except Exception:
+    # Best-effort; if this fails we fall back to default policy
+    pass
+
 # Load environment variables
 try:
     from dotenv import load_dotenv  # type: ignore

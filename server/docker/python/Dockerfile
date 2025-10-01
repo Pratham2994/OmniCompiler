@@ -4,7 +4,7 @@ FROM python:3.12-slim
 ENV PIP_NO_CACHE_DIR=1
 RUN useradd -m runner && \
     apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates && \
+      ca-certificates util-linux bsdextrautils && \
     rm -rf /var/lib/apt/lists/*
 
 # curated safe/common scientific libs (no net/ML/GUI stacks)

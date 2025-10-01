@@ -1,10 +1,13 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-import asyncio, json, tempfile, os, textwrap, shutil
+import asyncio, json, tempfile, os, textwrap, shutil, shlex, subprocess
 
 
 from .run_routes import SESSIONS
 
 router = APIRouter()
+
+# Sentinel emitted before each blocking input() by the Python shim
+SENTINEL = "<<<OC_AWAIT>>>"
 
 @router.websocket("/ws/echo")
 async def ws_echo(ws: WebSocket):
@@ -27,7 +30,8 @@ async def ws_echo(ws: WebSocket):
 
 
 
-USE_DOCKER = True
+# Allow toggling Docker via env; default ON for prod
+USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no", "No")
 
 
 
@@ -35,6 +39,10 @@ DOCKER_IMAGES = {
     "python": "omni-runner:python",
     "cpp": "omni-runner:cpp",
 }
+
+def _should_use_docker():
+    # Use Docker only if enabled and docker CLI is available
+    return USE_DOCKER and shutil.which("docker") is not None
 
 def _write_files(files, workdir):
     for f in files:
@@ -45,48 +53,110 @@ def _write_files(files, workdir):
 async def _start_process(lang, entry, args, workdir):
     """
     Start either a local process (dev mode) or a dockerized one (prod mode).
+    Auto-fallback to local if Docker is unavailable.
+    Handles Windows Proactor loop by falling back to blocking Popen with to_thread pumps.
+
+    Returns:
+        (proc, cmd_desc, using, mode) where:
+          - proc: asyncio.subprocess.Process | subprocess.Popen
+          - cmd_desc: human-friendly command string for diagnostics
+          - using: "docker" | "local"
+          - mode: "async" (asyncio subprocess) | "popen" (blocking Popen)
     """
-    if USE_DOCKER:
+    use_docker = _should_use_docker()
+    cmd = []
+    cmd_desc = ""
+    using = "docker" if use_docker else "local"
+
+    if use_docker:
         image = DOCKER_IMAGES.get(lang)
         if not image:
             raise ValueError(f"Unsupported lang for docker: {lang}")
 
-        mount = f"{workdir}:/work:ro"
+        # Use read-only mount for interpreted langs; rw when we need to compile (e.g., C++).
+        mount = f"{workdir}:/work:{'ro' if lang == 'python' else 'rw'}"
 
         if lang == "python":
+            # Multiline -c shim with explicit newlines. Forces write-through and emits a sentinel
+            # before each input() so the client can enable the input box immediately.
+            # Avoids parent TTY requirements and works reliably on Windows hosts.
+            entry_py = repr(entry)
+            args_py = repr(args)
+            pycode = (
+                "import runpy, sys, builtins\n"
+                "sys.stdout.reconfigure(write_through=True)\n"
+                "sys.stderr.reconfigure(write_through=True)\n"
+                "_orig_input = builtins.input\n"
+                "def _oc_input(prompt=''):\n"
+                "    sys.stdout.write(prompt)\n"
+                "    sys.stdout.flush()\n"
+                "    sys.stdout.write('<<<OC_AWAIT>>>')\n"
+                "    sys.stdout.flush()\n"
+                "    return _orig_input()\n"
+                "builtins.input = _oc_input\n"
+                f"sys.argv = [{entry_py}] + {args_py}\n"
+                f"runpy.run_path({entry_py}, run_name='__main__')\n"
+            )
             cmd = [
                 "docker", "run", "--rm", "-i",
                 "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
                 "-v", mount, "-w", "/work",
+                "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONIOENCODING=UTF-8",
                 image,
-                "python", entry, *args
+                "python", "-u", "-c", pycode
             ]
-
+            try:
+                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+            except Exception:
+                cmd_desc = f"docker run ... {image} python -u {entry} {' '.join(args)}"
         elif lang == "cpp":
+            # Compile, then execute under a PTY if available; otherwise try stdbuf for line-buffering as a fallback.
+            args_q = " ".join(shlex.quote(a) for a in args)
+            shell_line = (
+                f"g++ -O2 {shlex.quote(entry)} -o app && "
+                f"( if command -v script >/dev/null 2>&1; then "
+                f"script -qefc './app {args_q}' /dev/null; "
+                f"elif command -v stdbuf >/dev/null 2>&1; then "
+                f"stdbuf -oL -eL ./app {args_q}; "
+                f"else ./app {args_q}; fi )"
+            )
             cmd = [
                 "docker", "run", "--rm", "-i",
                 "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
                 "-v", mount, "-w", "/work",
                 image,
-                "/bin/sh", "-lc", f"g++ -O2 {entry} -o app && ./app {' '.join(args)}"
+                "/bin/sh", "-lc", shell_line
             ]
+            try:
+                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+            except Exception:
+                cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
+        else:
+            raise ValueError(f"Unsupported lang for docker: {lang}")
 
     else:
-        # local fallback for dev/testing
-        if lang == "python":
-            cmd = ["python3", entry, *args]
-        elif lang == "cpp":
-            cmd = ["g++", entry, "-o", "app", "&&", "./app", *args]
-        else:
-            raise ValueError(f"Unsupported lang for local run: {lang}")
+        # Enforce Docker-only execution as requested; no local runner.
+        raise ValueError("Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).")
 
-    return await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=workdir,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    # First try asyncio subprocess (preferred). If NotImplementedError (e.g. Proactor loop), fall back to Popen.
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        return proc, cmd_desc, using, "async"
+    except NotImplementedError:
+        pop = subprocess.Popen(
+            cmd,
+            cwd=workdir,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        return pop, cmd_desc, using, "popen"
 
 @router.websocket("/ws/run/{sid}")
 async def ws_run(ws: WebSocket, sid: str):
@@ -99,6 +169,12 @@ async def ws_run(ws: WebSocket, sid: str):
 
     lang, entry, args, files = sess["lang"], sess["entry"], sess["args"], sess["files"]
 
+    # announce start (useful for client-side diagnostics)
+    try:
+        await ws.send_json({"type": "status", "phase": "starting", "lang": lang, "entry": entry})
+    except Exception:
+        pass
+
     # create a temp folder and write files into it
     workdir = tempfile.mkdtemp(prefix=f"oc-{lang}-")
     _write_files(files, workdir)
@@ -109,28 +185,143 @@ async def ws_run(ws: WebSocket, sid: str):
         return await ws.close()
 
     try:
-        proc = await _start_process(lang, entry, args, workdir)
+        proc, cmd_desc, using, mode = await _start_process(lang, entry, args, workdir)
     except Exception as e:
-        await ws.send_json({"type":"err","data":str(e)})
+        err_msg = str(e)
+        if not err_msg:
+            try:
+                err_msg = repr(e)
+            except Exception:
+                err_msg = e.__class__.__name__
+        try:
+            await ws.send_json({"type":"err","data": err_msg})
+        except Exception:
+            pass
         shutil.rmtree(workdir, ignore_errors=True)
         return await ws.close()
 
+    # Inform client of the exact command/run mode for diagnostics
+    try:
+        await ws.send_json({"type": "status", "phase": "exec", "using": using, "mode": mode, "cmd": cmd_desc})
+    except Exception:
+        pass
+
     await ws.send_json({"type":"status","phase":"running"})
 
-    async def pump(reader, kind):
+    # For interactive programs, read in chunks (not lines) so prompts without newline are delivered.
+    # Important: the sentinel may span chunk boundaries; we keep a rolling carry buffer per stream.
+    async def pump_async(reader, kind):
+        carry = ""
         try:
             while True:
-                line = await reader.readline()
-                if not line:
+                chunk = await reader.read(1024)
+                if not chunk:
+                    if carry:
+                        # flush any trailing buffered text
+                        await ws.send_json({"type": kind, "data": carry})
                     break
-                await ws.send_json({"type": kind, "data": line.decode(errors="ignore")})
+
+                text = carry + chunk.decode(errors="ignore")
+                carry = ""
+
+                # Only parse sentinel on stdout; forward stderr verbatim
+                if kind != "out":
+                    if text:
+                        await ws.send_json({"type": kind, "data": text})
+                    continue
+
+                s = SENTINEL
+                i = 0
+                while True:
+                    j = text.find(s, i)
+                    if j == -1:
+                        # No full sentinel found; retain any suffix that matches a prefix of the sentinel
+                        # so we can complete it with the next chunk.
+                        tail_len = 0
+                        max_tail = min(len(s) - 1, len(text) - i)
+                        for k in range(max_tail, 0, -1):
+                            if text.endswith(s[:k]):
+                                tail_len = k
+                                break
+                        emit_part = text[i: len(text) - tail_len] if tail_len > 0 else text[i:]
+                        if emit_part:
+                            await ws.send_json({"type": kind, "data": emit_part})
+                            # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
+                            if kind == "out" and not emit_part.endswith("\n"):
+                                await ws.send_json({"type": "awaiting_input", "value": True})
+                        carry = text[-tail_len:] if tail_len > 0 else ""
+                        break
+
+                    # Emit any stdout preceding the sentinel
+                    if j > i:
+                        part = text[i:j]
+                        await ws.send_json({"type": kind, "data": part})
+                        # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
+                        if part and not part.endswith("\n"):
+                            await ws.send_json({"type": "awaiting_input", "value": True})
+                    # Notify client that program is awaiting input (explicit sentinel)
+                    await ws.send_json({"type": "awaiting_input", "value": True})
+                    i = j + len(s)
         except Exception:
             pass
 
-    t_out = asyncio.create_task(pump(proc.stdout, "out"))
-    t_err = asyncio.create_task(pump(proc.stderr, "err"))
+    async def pump_blocking(fobj, kind):
+        carry = ""
+        try:
+            while True:
+                chunk = await asyncio.to_thread(fobj.read, 1)
+                if not chunk:
+                    if carry:
+                        await ws.send_json({"type": kind, "data": carry})
+                    break
 
-    WALL = 20
+                text = carry + chunk.decode(errors="ignore")
+                carry = ""
+
+                if kind != "out":
+                    if text:
+                        await ws.send_json({"type": kind, "data": text})
+                    continue
+
+                s = SENTINEL
+                i = 0
+                while True:
+                    j = text.find(s, i)
+                    if j == -1:
+                        tail_len = 0
+                        max_tail = min(len(s) - 1, len(text) - i)
+                        for k in range(max_tail, 0, -1):
+                            if text.endswith(s[:k]):
+                                tail_len = k
+                                break
+                        emit_part = text[i: len(text) - tail_len] if tail_len > 0 else text[i:]
+                        if emit_part:
+                            await ws.send_json({"type": kind, "data": emit_part})
+                            # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
+                            if kind == "out" and not emit_part.endswith("\n"):
+                                await ws.send_json({"type": "awaiting_input", "value": True})
+                        carry = text[-tail_len:] if tail_len > 0 else ""
+                        break
+
+                    if j > i:
+                        part = text[i:j]
+                        await ws.send_json({"type": kind, "data": part})
+                        # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
+                        if part and not part.endswith("\n"):
+                            await ws.send_json({"type": "awaiting_input", "value": True})
+                    await ws.send_json({"type": "awaiting_input", "value": True})
+                    i = j + len(s)
+        except Exception:
+            pass
+
+    if mode == "popen":
+        t_out = asyncio.create_task(pump_blocking(proc.stdout, "out"))
+        t_err = asyncio.create_task(pump_blocking(proc.stderr, "err"))
+    else:
+        t_out = asyncio.create_task(pump_async(proc.stdout, "out"))
+        t_err = asyncio.create_task(pump_async(proc.stderr, "err"))
+
+    WALL = 60
     async def watchdog():
         await asyncio.sleep(WALL)
         if proc.returncode is None:
@@ -138,24 +329,80 @@ async def ws_run(ws: WebSocket, sid: str):
     t_wd = asyncio.create_task(watchdog())
 
     try:
+        # Race the process exit with inbound WS messages so session ends promptly after program finishes.
+        proc_wait = asyncio.create_task(asyncio.to_thread(proc.wait) if mode == "popen" else proc.wait())
+
         while True:
-            msg = json.loads(await ws.receive_text())
+            recv_task = asyncio.create_task(ws.receive_text())
+            done, pending = await asyncio.wait({recv_task, proc_wait}, return_when=asyncio.FIRST_COMPLETED)
+
+            if proc_wait in done:
+                # Process exited; stop consuming messages
+                for t in pending:
+                    t.cancel()
+                break
+
+            # We have a WS message
+            try:
+                raw = await recv_task
+            except WebSocketDisconnect:
+                if proc.returncode is None:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                break
+
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                await ws.send_json({"type":"err","data": f"invalid msg: {raw}"})
+                continue
+
             if msg.get("type") == "in":
                 data = msg.get("data", "")
-                if proc.stdin and not proc.stdin.is_closing():
-                    proc.stdin.write(data.encode())
-                    await proc.stdin.drain()
+                if not data:
+                    continue
+                try:
+                    if mode == "popen":
+                        if proc.stdin:
+                            await asyncio.to_thread(proc.stdin.write, data.encode())
+                            await asyncio.to_thread(proc.stdin.flush)
+                    else:
+                        if proc.stdin and not proc.stdin.is_closing():
+                            proc.stdin.write(data.encode())
+                            await proc.stdin.drain()
+                    # After forwarding a line to the program, assume it's no longer awaiting input
+                    try:
+                        await ws.send_json({"type": "awaiting_input", "value": False})
+                    except Exception:
+                        pass
+                except Exception:
+                    # ignore broken pipe on late input
+                    pass
             elif msg.get("type") == "close":
-                proc.terminate()
+                try:
+                    proc.terminate()
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             else:
                 await ws.send_json({"type":"err","data": f"unknown msg: {msg}"})
     except WebSocketDisconnect:
         if proc.returncode is None:
-            proc.kill()
+            try:
+                proc.kill()
+            except Exception:
+                pass
     finally:
         rc = -1
         try:
-            rc = await proc.wait()
+            if mode == "popen":
+                rc = await asyncio.to_thread(proc.wait)
+            else:
+                rc = await proc.wait()
         except Exception:
             pass
         for t in (t_out, t_err, t_wd):
