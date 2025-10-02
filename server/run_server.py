@@ -18,7 +18,7 @@ def main():
     # which breaks asyncio subprocess. To guarantee Proactor-based loop for workers,
     # run without reload here. Use a separate terminal for client dev auto-reload.
     uvicorn.run(
-        "server.main:app",
+        "main:app",
         host="127.0.0.1",
         port=int(os.getenv("PORT", "8000")),
         reload=False,  # guarantee Proactor loop in workers on Windows
