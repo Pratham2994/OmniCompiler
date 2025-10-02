@@ -1,94 +1,9 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio, json, tempfile, os, textwrap, shutil, shlex, subprocess
-import os, textwrap
 
 SENTINEL = "<<<OC_AWAIT>>>"
 
 
-# Async adapters to make subprocess.Popen look like asyncio subprocess on Windows
-class _AsyncReaderAdapter:
-    def __init__(self, fobj):
-        self._f = fobj
-
-    async def read(self, n: int) -> bytes:
-        if self._f is None:
-            return b""
-        # Read in small chunks to flush prompts/sentinels quickly on Windows pipes.
-        # Using large n can block the worker thread longer than desired.
-        want = 1 if (n is None or n > 1) else n
-        return await asyncio.to_thread(self._f.read, want)
-
-
-class _AsyncWriterAdapter:
-    def __init__(self, fobj):
-        self._f = fobj
-        self._buf = []
-
-    def write(self, b: bytes):
-        # Called sync by writer; accumulate and flush on drain()
-        if b:
-            self._buf.append(b)
-
-    async def drain(self):
-        if not self._f:
-            return
-        data = b"".join(self._buf)
-        self._buf.clear()
-
-        def _write():
-            if data:
-                try:
-                    self._f.write(data)
-                    try:
-                        self._f.flush()
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-
-        await asyncio.to_thread(_write)
-
-    def is_closing(self) -> bool:
-        # Match asyncio StreamWriter API used by caller
-        return False
-
-
-class _AsyncPopenCompat:
-    """
-    Minimal shim so ws_routes can treat Popen-backed process as asyncio.subprocess.Process:
-      - stdout/stderr: expose .read(n) coroutine via _AsyncReaderAdapter so pump_async works
-      - stdin: expose .write() + await .drain() via _AsyncWriterAdapter
-      - wait(): coroutine that awaits Popen.wait() in a thread
-      - terminate()/kill(): delegate to underlying Popen
-      - returncode: proxy property
-    """
-    def __init__(self, pop: "subprocess.Popen"):
-        self._p = pop
-        self.stdout = _AsyncReaderAdapter(pop.stdout) if pop.stdout else None
-        self.stderr = _AsyncReaderAdapter(pop.stderr) if pop.stderr else None
-        self.stdin = _AsyncWriterAdapter(pop.stdin) if pop.stdin else None
-
-    @property
-    def returncode(self):
-        return self._p.returncode
-
-    async def wait(self) -> int:
-        try:
-            return await asyncio.to_thread(self._p.wait)
-        except Exception:
-            return -1
-
-    def kill(self):
-        try:
-            self._p.kill()
-        except Exception:
-            pass
-
-    def terminate(self):
-        try:
-            self._p.terminate()
-        except Exception:
-            pass
 from .run_routes import SESSIONS
 
 router = APIRouter()
@@ -259,24 +174,12 @@ async def _start_process(lang, entry, args, workdir):
         )
         return proc, cmd_desc, using, "async"
     except NotImplementedError:
-        # On Windows SelectorEventLoop, asyncio subprocess is unsupported.
-        # Use Popen but wrap it into an asyncio-compatible shim so the rest of the pipeline can stay async.
-        try:
-            pol = type(asyncio.get_event_loop_policy()).__name__
-            loop = asyncio.get_running_loop()
-            loop_cls = type(loop).__name__
-            print(f"[exec] asyncio.create_subprocess_exec unsupported for loop={loop_cls} policy={pol}; using Popen wrapped for async I/O.")
-        except Exception:
-            print("[exec] asyncio.create_subprocess_exec unsupported; using Popen wrapped for async I/O.")
-        pop = subprocess.Popen(
-            cmd,
-            cwd=workdir,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        # Decluttered minimal fallback: require proper Windows event loop (Proactor) via launcher
+        raise RuntimeError(
+            "Async subprocess unsupported with current event loop. "
+            "On Windows, start the server with: python run_server.py "
+            "(this sets WindowsProactorEventLoopPolicy so asyncio subprocess works)."
         )
-        proc = _AsyncPopenCompat(pop)
-        return proc, cmd_desc, using, "async"
 
 @router.websocket("/ws/run/{sid}")
 async def ws_run(ws: WebSocket, sid: str):
@@ -340,11 +243,9 @@ async def ws_run(ws: WebSocket, sid: str):
         carry = ""
         try:
             while True:
-                # Smaller read size reduces latency for prompts/sentinels on Windows pipes
-                chunk = await reader.read(64)
+                chunk = await reader.read(1024)
                 if not chunk:
                     if carry:
-                        # flush any trailing buffered text
                         await ws.send_json({"type": kind, "data": carry})
                     break
 
@@ -392,61 +293,9 @@ async def ws_run(ws: WebSocket, sid: str):
         except Exception:
             pass
 
-    async def pump_blocking(fobj, kind):
-        carry = ""
-        try:
-            while True:
-                chunk = await asyncio.to_thread(fobj.read, 1)
-                if not chunk:
-                    if carry:
-                        await ws.send_json({"type": kind, "data": carry})
-                    break
 
-                text = carry + chunk.decode(errors="ignore")
-                carry = ""
-
-                if kind != "out":
-                    if text:
-                        await ws.send_json({"type": kind, "data": text})
-                    continue
-
-                s = SENTINEL
-                i = 0
-                while True:
-                    j = text.find(s, i)
-                    if j == -1:
-                        tail_len = 0
-                        max_tail = min(len(s) - 1, len(text) - i)
-                        for k in range(max_tail, 0, -1):
-                            if text.endswith(s[:k]):
-                                tail_len = k
-                                break
-                        emit_part = text[i: len(text) - tail_len] if tail_len > 0 else text[i:]
-                        if emit_part:
-                            await ws.send_json({"type": kind, "data": emit_part})
-                            # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
-                            if kind == "out" and not emit_part.endswith("\n"):
-                                await ws.send_json({"type": "awaiting_input", "value": True})
-                        carry = text[-tail_len:] if tail_len > 0 else ""
-                        break
-
-                    if j > i:
-                        part = text[i:j]
-                        await ws.send_json({"type": kind, "data": part})
-                        # Heuristic: if stdout doesn't end with newline, likely a prompt → enable input
-                        if part and not part.endswith("\n"):
-                            await ws.send_json({"type": "awaiting_input", "value": True})
-                    await ws.send_json({"type": "awaiting_input", "value": True})
-                    i = j + len(s)
-        except Exception:
-            pass
-
-    if mode == "popen":
-        t_out = asyncio.create_task(pump_blocking(proc.stdout, "out"))
-        t_err = asyncio.create_task(pump_blocking(proc.stderr, "err"))
-    else:
-        t_out = asyncio.create_task(pump_async(proc.stdout, "out"))
-        t_err = asyncio.create_task(pump_async(proc.stderr, "err"))
+    t_out = asyncio.create_task(pump_async(proc.stdout, "out"))
+    t_err = asyncio.create_task(pump_async(proc.stderr, "err"))
 
     WALL = 60
     async def watchdog():
@@ -457,7 +306,7 @@ async def ws_run(ws: WebSocket, sid: str):
 
     try:
         # Race the process exit with inbound WS messages so session ends promptly after program finishes.
-        proc_wait = asyncio.create_task(asyncio.to_thread(proc.wait) if mode == "popen" else proc.wait())
+        proc_wait = asyncio.create_task(proc.wait())
 
         while True:
             recv_task = asyncio.create_task(ws.receive_text())
@@ -491,14 +340,9 @@ async def ws_run(ws: WebSocket, sid: str):
                 if not data:
                     continue
                 try:
-                    if mode == "popen":
-                        if proc.stdin:
-                            await asyncio.to_thread(proc.stdin.write, data.encode())
-                            await asyncio.to_thread(proc.stdin.flush)
-                    else:
-                        if proc.stdin and not proc.stdin.is_closing():
-                            proc.stdin.write(data.encode())
-                            await proc.stdin.drain()
+                    if proc.stdin and not proc.stdin.is_closing():
+                        proc.stdin.write(data.encode())
+                        await proc.stdin.drain()
                     # After forwarding a line to the program, assume it's no longer awaiting input
                     try:
                         await ws.send_json({"type": "awaiting_input", "value": False})
@@ -526,10 +370,7 @@ async def ws_run(ws: WebSocket, sid: str):
     finally:
         rc = -1
         try:
-            if mode == "popen":
-                rc = await asyncio.to_thread(proc.wait)
-            else:
-                rc = await proc.wait()
+            rc = await proc.wait()
         except Exception:
             pass
         for t in (t_out, t_err, t_wd):
