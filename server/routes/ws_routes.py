@@ -1,5 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio, json, tempfile, os, textwrap, shutil, shlex, subprocess
+import os, textwrap
+
+SENTINEL = "<<<OC_AWAIT>>>"
 
 
 from .run_routes import SESSIONS
@@ -80,35 +83,47 @@ async def _start_process(lang, entry, args, workdir):
             # Multiline -c shim with explicit newlines. Forces write-through and emits a sentinel
             # before each input() so the client can enable the input box immediately.
             # Avoids parent TTY requirements and works reliably on Windows hosts.
-            entry_py = repr(entry)
-            args_py = repr(args)
-            pycode = (
-                "import runpy, sys, builtins\n"
-                "sys.stdout.reconfigure(write_through=True)\n"
-                "sys.stderr.reconfigure(write_through=True)\n"
-                "_orig_input = builtins.input\n"
-                "def _oc_input(prompt=''):\n"
-                "    sys.stdout.write(prompt)\n"
-                "    sys.stdout.flush()\n"
-                "    sys.stdout.write('<<<OC_AWAIT>>>')\n"
-                "    sys.stdout.flush()\n"
-                "    return _orig_input()\n"
-                "builtins.input = _oc_input\n"
-                f"sys.argv = [{entry_py}] + {args_py}\n"
-                f"runpy.run_path({entry_py}, run_name='__main__')\n"
-            )
-            cmd = [
-                "docker", "run", "--rm", "-i",
-                "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
-                "-v", mount, "-w", "/work",
-                "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONIOENCODING=UTF-8",
-                image,
-                "python", "-u", "-c", pycode
-            ]
-            try:
-                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
-            except Exception:
-                cmd_desc = f"docker run ... {image} python -u {entry} {' '.join(args)}"
+                bootstrap = textwrap.dedent(f"""
+                    import sys, runpy, builtins, os
+
+                    # unbuffered stdout/stderr even when piped
+                    try:
+                        sys.stdout.reconfigure(write_through=True)
+                        sys.stderr.reconfigure(write_through=True)
+                    except Exception:
+                        pass
+
+                    _orig_input = builtins.input
+                    def _oc_input(prompt=''):
+                        sys.stdout.write(str(prompt))
+                        sys.stdout.flush()
+                        sys.stdout.write('{SENTINEL}')
+                        sys.stdout.flush()
+                        return _orig_input()
+
+                    builtins.input = _oc_input
+
+                    # supply argv as if the user ran: python {entry} *args
+                    sys.argv = [{repr(entry)}] + {repr(list(args))}
+
+                    # run the user's script as __main__
+                    runpy.run_path({repr(entry)}, run_name='__main__')
+                """).lstrip()
+
+                bootstrap_path = os.path.join(workdir, "_oc_bootstrap.py")
+                with open(bootstrap_path, "w", encoding="utf-8") as f:
+                    f.write(bootstrap)
+
+                # 2) build the docker run command (NO -t; Python unbuffered)
+                mount = f"{os.path.abspath(workdir)}:/work:ro"
+                cmd = [
+                    "docker", "run", "--rm", "-i",
+                    "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+                    "-v", mount, "-w", "/work",
+                    "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONIOENCODING=UTF-8",
+                    DOCKER_IMAGES["python"],
+                    "python", "-u", "_oc_bootstrap.py"
+                ]
         elif lang == "cpp":
             # Compile, then execute under a PTY if available; otherwise try stdbuf for line-buffering as a fallback.
             args_q = " ".join(shlex.quote(a) for a in args)
