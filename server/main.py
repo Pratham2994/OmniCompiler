@@ -4,10 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure subprocess support on Windows (needed for asyncio.create_subprocess_exec)
+# Note: On Windows, subprocess support is provided by the Proactor event loop.
+# SelectorEventLoop does NOT implement subprocess APIs and will raise NotImplementedError.
 try:
     import asyncio  # noqa: E402
     if os.name == "nt":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # supports subprocess
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())  # supports subprocess
 except Exception:
     # Best-effort; if this fails we fall back to default policy
     pass

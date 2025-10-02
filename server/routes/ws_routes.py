@@ -5,6 +5,90 @@ import os, textwrap
 SENTINEL = "<<<OC_AWAIT>>>"
 
 
+# Async adapters to make subprocess.Popen look like asyncio subprocess on Windows
+class _AsyncReaderAdapter:
+    def __init__(self, fobj):
+        self._f = fobj
+
+    async def read(self, n: int) -> bytes:
+        if self._f is None:
+            return b""
+        # Read in small chunks to flush prompts/sentinels quickly on Windows pipes.
+        # Using large n can block the worker thread longer than desired.
+        want = 1 if (n is None or n > 1) else n
+        return await asyncio.to_thread(self._f.read, want)
+
+
+class _AsyncWriterAdapter:
+    def __init__(self, fobj):
+        self._f = fobj
+        self._buf = []
+
+    def write(self, b: bytes):
+        # Called sync by writer; accumulate and flush on drain()
+        if b:
+            self._buf.append(b)
+
+    async def drain(self):
+        if not self._f:
+            return
+        data = b"".join(self._buf)
+        self._buf.clear()
+
+        def _write():
+            if data:
+                try:
+                    self._f.write(data)
+                    try:
+                        self._f.flush()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+        await asyncio.to_thread(_write)
+
+    def is_closing(self) -> bool:
+        # Match asyncio StreamWriter API used by caller
+        return False
+
+
+class _AsyncPopenCompat:
+    """
+    Minimal shim so ws_routes can treat Popen-backed process as asyncio.subprocess.Process:
+      - stdout/stderr: expose .read(n) coroutine via _AsyncReaderAdapter so pump_async works
+      - stdin: expose .write() + await .drain() via _AsyncWriterAdapter
+      - wait(): coroutine that awaits Popen.wait() in a thread
+      - terminate()/kill(): delegate to underlying Popen
+      - returncode: proxy property
+    """
+    def __init__(self, pop: "subprocess.Popen"):
+        self._p = pop
+        self.stdout = _AsyncReaderAdapter(pop.stdout) if pop.stdout else None
+        self.stderr = _AsyncReaderAdapter(pop.stderr) if pop.stderr else None
+        self.stdin = _AsyncWriterAdapter(pop.stdin) if pop.stdin else None
+
+    @property
+    def returncode(self):
+        return self._p.returncode
+
+    async def wait(self) -> int:
+        try:
+            return await asyncio.to_thread(self._p.wait)
+        except Exception:
+            return -1
+
+    def kill(self):
+        try:
+            self._p.kill()
+        except Exception:
+            pass
+
+    def terminate(self):
+        try:
+            self._p.terminate()
+        except Exception:
+            pass
 from .run_routes import SESSIONS
 
 router = APIRouter()
@@ -57,7 +141,7 @@ async def _start_process(lang, entry, args, workdir):
     """
     Start either a local process (dev mode) or a dockerized one (prod mode).
     Auto-fallback to local if Docker is unavailable.
-    Handles Windows Proactor loop by falling back to blocking Popen with to_thread pumps.
+    Handles Windows Selector loop by falling back to blocking Popen with to_thread pumps.
 
     Returns:
         (proc, cmd_desc, using, mode) where:
@@ -114,16 +198,18 @@ async def _start_process(lang, entry, args, workdir):
                 with open(bootstrap_path, "w", encoding="utf-8") as f:
                     f.write(bootstrap)
 
-                # 2) build the docker run command (NO -t; Python unbuffered)
+                # 2) build the docker run command (Python unbuffered; no TTY needed)
                 mount = f"{os.path.abspath(workdir)}:/work:ro"
-                cmd = [
-                    "docker", "run", "--rm", "-i",
-                    "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
-                    "-v", mount, "-w", "/work",
-                    "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONIOENCODING=UTF-8",
-                    DOCKER_IMAGES["python"],
-                    "python", "-u", "_oc_bootstrap.py"
-                ]
+                cmd = ["docker", "run", "--rm", "-i",
+                       "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+                       "-v", mount, "-w", "/work",
+                       "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONIOENCODING=UTF-8",
+                       DOCKER_IMAGES["python"],
+                       "python", "-u", "_oc_bootstrap.py"]
+                try:
+                    cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+                except Exception:
+                    cmd_desc = f"docker run ... {DOCKER_IMAGES['python']} python -u _oc_bootstrap.py"
         elif lang == "cpp":
             # Compile, then execute under a PTY if available; otherwise try stdbuf for line-buffering as a fallback.
             args_q = " ".join(shlex.quote(a) for a in args)
@@ -153,8 +239,17 @@ async def _start_process(lang, entry, args, workdir):
         # Enforce Docker-only execution as requested; no local runner.
         raise ValueError("Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).")
 
-    # First try asyncio subprocess (preferred). If NotImplementedError (e.g. Proactor loop), fall back to Popen.
+    # First try asyncio subprocess (preferred). If NotImplementedError (e.g. Selector loop), fall back to Popen.
     try:
+        # Diagnostics: log the active asyncio policy and loop type
+        try:
+            pol = type(asyncio.get_event_loop_policy()).__name__
+            loop = asyncio.get_running_loop()
+            loop_cls = type(loop).__name__
+            print(f"[exec] asyncio policy={pol} loop={loop_cls} os={os.name}")
+        except Exception:
+            pass
+
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workdir,
@@ -164,6 +259,15 @@ async def _start_process(lang, entry, args, workdir):
         )
         return proc, cmd_desc, using, "async"
     except NotImplementedError:
+        # On Windows SelectorEventLoop, asyncio subprocess is unsupported.
+        # Use Popen but wrap it into an asyncio-compatible shim so the rest of the pipeline can stay async.
+        try:
+            pol = type(asyncio.get_event_loop_policy()).__name__
+            loop = asyncio.get_running_loop()
+            loop_cls = type(loop).__name__
+            print(f"[exec] asyncio.create_subprocess_exec unsupported for loop={loop_cls} policy={pol}; using Popen wrapped for async I/O.")
+        except Exception:
+            print("[exec] asyncio.create_subprocess_exec unsupported; using Popen wrapped for async I/O.")
         pop = subprocess.Popen(
             cmd,
             cwd=workdir,
@@ -171,7 +275,8 @@ async def _start_process(lang, entry, args, workdir):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        return pop, cmd_desc, using, "popen"
+        proc = _AsyncPopenCompat(pop)
+        return proc, cmd_desc, using, "async"
 
 @router.websocket("/ws/run/{sid}")
 async def ws_run(ws: WebSocket, sid: str):
@@ -217,6 +322,12 @@ async def ws_run(ws: WebSocket, sid: str):
 
     # Inform client of the exact command/run mode for diagnostics
     try:
+        # Log the full docker command being executed for diagnostics
+        if cmd_desc:
+            try:
+                print(f"[status:exec] using={using} mode={mode} cmd={cmd_desc}")
+            except Exception:
+                pass
         await ws.send_json({"type": "status", "phase": "exec", "using": using, "mode": mode, "cmd": cmd_desc})
     except Exception:
         pass
@@ -229,7 +340,8 @@ async def ws_run(ws: WebSocket, sid: str):
         carry = ""
         try:
             while True:
-                chunk = await reader.read(1024)
+                # Smaller read size reduces latency for prompts/sentinels on Windows pipes
+                chunk = await reader.read(64)
                 if not chunk:
                     if carry:
                         # flush any trailing buffered text
