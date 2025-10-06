@@ -134,7 +134,7 @@ async def _start_process(lang, entry, args, workdir):
             shell_line = (
                 f"g++ -O2 {shlex.quote(entry)} -o app && "
                 f"( if command -v script >/dev/null 2>&1; then "
-                f"script -qefc './app {args_q}' /dev/null; "
+                f"script -qefc 'stty -echo; ./app {args_q}; stty echo' /dev/null; "
                 f"elif command -v stdbuf >/dev/null 2>&1; then "
                 f"stdbuf -oL -eL ./app {args_q}; "
                 f"else ./app {args_q}; fi )"
@@ -155,7 +155,7 @@ async def _start_process(lang, entry, args, workdir):
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
                 f"( if command -v script >/dev/null 2>&1; then "
-                f"script -qefc 'node {shlex.quote(entry)} {args_q}' /dev/null; "
+                f"script -qefc 'stty -echo; node {shlex.quote(entry)} {args_q}; stty echo' /dev/null; "
                 f"elif command -v stdbuf >/dev/null 2>&1; then "
                 f"stdbuf -oL -eL node {shlex.quote(entry)} {args_q}; "
                 f"else node {shlex.quote(entry)} {args_q}; fi )"
@@ -201,7 +201,7 @@ async def _start_process(lang, entry, args, workdir):
             shell_line = (
                 f"javac {shlex.quote(entry)} && "
                 f"( if command -v script >/dev/null 2>&1; then "
-                f"script -qefc 'java -Xrs {shlex.quote(main_class)} {args_q}' /dev/null; "
+                f"script -qefc 'stty -echo; java -Xrs {shlex.quote(main_class)} {args_q}; stty echo' /dev/null; "
                 f"elif command -v stdbuf >/dev/null 2>&1; then "
                 f"stdbuf -oL -eL java -Xrs {shlex.quote(main_class)} {args_q}; "
                 f"else java -Xrs {shlex.quote(main_class)} {args_q}; fi )"
