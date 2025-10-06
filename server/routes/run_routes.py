@@ -25,11 +25,21 @@ class RunResp(BaseModel):
 
 # ---------- Validation helpers ----------
 SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")  # no slashes/paths, no spaces
+ALLOWED_LANGS = {"python", "javascript", "java", "cpp", "go"}  # explicitly supported; plaintext is not allowed
 
 def _is_safe_name(name: str) -> bool:
     return bool(SAFE_NAME.match(name))
 
 def _validate_request(req: RunReq) -> None:
+    # 0) language must be allowed and not plaintext
+    lang = (req.lang or "").strip().lower()
+    if lang not in ALLOWED_LANGS:
+        allowed = ", ".join(sorted(ALLOWED_LANGS))
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported language: {req.lang!r}. Choose one of: {allowed}"
+        )
+
     # 1) filenames must be safe
     for f in req.files:
         if not _is_safe_name(f.name):

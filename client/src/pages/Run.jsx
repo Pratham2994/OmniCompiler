@@ -449,7 +449,7 @@ export default function Run() {
 
   // Output / Run
   const [outputTab, setOutputTab] = useState('run') // 'run' | 'resources'
-  const [outputLog, setOutputLog] = useState(['Welcome to Omni Compiler.'])
+  const [outputLog, setOutputLog] = useState([{ kind: 'log', text: 'Welcome to Omni Compiler.' }])
   const [running, setRunning] = useState(false)
   const wsRef = useRef(null)
   const [stdinLine, setStdinLine] = useState('')
@@ -509,6 +509,15 @@ export default function Run() {
     setOutputTab('run')
     const ts = nowTime()
 
+    // Guard: do not send plaintext to backend
+    const effLang = getEffectiveLanguage(activeFileId) || 'plaintext'
+    if (effLang === 'plaintext') {
+      setRunning(false)
+      setOutputLog(prev => [...prev, { kind: 'log', text: `[${ts}] Language is Plain Text. Choose Python, JavaScript, Java, C++, or Go, then run.` }])
+      try { triggerToast && triggerToast('Select a programming language first') } catch {}
+      return
+    }
+
     // ensure active model value flushed into state before sending
     const ed = editorRef.current
     const model = ed?.getModel()
@@ -525,7 +534,7 @@ export default function Run() {
 
     try {
       const body = buildRunRequest()
-      setOutputLog(prev => [...prev, `[${ts}] Starting run (lang=${body.lang}, entry=${body.entry})…`])
+      setOutputLog(prev => [...prev, { kind: 'log', text: `[${ts}] Starting run (lang=${body.lang}, entry=${body.entry})…` }])
 
       const res = await fetch(`${apiBase}/run`, {
         method: 'POST',
@@ -541,8 +550,8 @@ export default function Run() {
       if (!url) throw new Error('ws_url missing from /run response')
       setOutputLog(prev => [
         ...prev,
-        `[${nowTime()}] Session ${data.session_id} created. Connecting…`,
-        `[${nowTime()}] WS URL: ${url}`
+        { kind: 'log', text: `[${nowTime()}] Session ${data.session_id} created. Connecting…` },
+        { kind: 'log', text: `[${nowTime()}] WS URL: ${url}` }
       ])
  
       const ws = new WebSocket(url)
@@ -550,7 +559,7 @@ export default function Run() {
  
       ws.onopen = () => {
         setWaitingForInput(false)
-        setOutputLog(prev => [...prev, `[${nowTime()}] WebSocket connected.`])
+        setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] WebSocket connected.` }])
       }
       ws.onmessage = (ev) => {
         const raw = ev?.data
@@ -562,7 +571,7 @@ export default function Run() {
         }
  
         if (!msg) {
-          setOutputLog(prev => [...prev, `[raw] ${String(raw ?? '')}`])
+          setOutputLog(prev => [...prev, { kind: 'log', text: `[raw] ${String(raw ?? '')}` }])
           return
         }
  
@@ -570,10 +579,9 @@ export default function Run() {
           if (msg?.type === 'out' || msg?.type === 'err') {
             // Server uses type 'err' both for process stderr and protocol errors.
             // If data is empty, surface a clearer placeholder.
-            const tag = msg.type === 'err' ? '[stderr] ' : ''
             const dataStr = String(msg.data ?? '')
             const finalStr = dataStr.length ? dataStr : '(empty)'
-            setOutputLog(prev => [...prev, `${tag}${finalStr}`])
+            setOutputLog(prev => [...prev, { kind: (msg.type === 'err' ? 'err' : 'out'), text: finalStr }])
             // Heuristic prompt detection: enable stdin when stdout chunk does not end with newline
             if (msg.type === 'out') {
               const seemsPrompt = dataStr.length > 0 && !dataStr.endsWith('\n')
@@ -584,41 +592,41 @@ export default function Run() {
             if (msg.type === 'err' && typeof msg.data === 'string' && /invalid session_id/i.test(msg.data)) {
               setOutputLog(prev => [
                 ...prev,
-                '[hint] Session was invalid. This can happen if the server restarted after creating the session. Try running again.'
+                { kind: 'log', text: '[hint] Session was invalid. This can happen if the server restarted after creating the session. Try running again.' }
               ])
             }
           } else if (msg?.type === 'status') {
-            setOutputLog(prev => [...prev, `[${nowTime()}] ${msg.phase || 'status'}`])
+            setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] ${msg.phase || 'status'}` }])
           } else if (msg?.type === 'awaiting_input') {
             setWaitingForInput(Boolean(msg.value))
           } else if (msg?.type === 'exit') {
-            setOutputLog(prev => [...prev, `[${nowTime()}] Exit code: ${msg.code}`])
+            setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] Exit code: ${msg.code}` }])
             setRunning(false)
             setWaitingForInput(false)
             try { ws.close() } catch {}
             wsRef.current = null
           } else {
             // Unknown typed message: show it raw for diagnostics
-            setOutputLog(prev => [...prev, `[msg] ${JSON.stringify(msg)}`])
+            setOutputLog(prev => [...prev, { kind: 'log', text: `[msg] ${JSON.stringify(msg)}` }])
           }
         } catch (e) {
-          setOutputLog(prev => [...prev, `[parse-error] ${String(e?.message || e)}`])
+          setOutputLog(prev => [...prev, { kind: 'err', text: `[parse-error] ${String(e?.message || e)}` }])
         }
       }
       ws.onerror = (e) => {
-        setOutputLog(prev => [...prev, `[${nowTime()}] WebSocket error`])
+        setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] WebSocket error` }])
         setWaitingForInput(false)
       }
       ws.onclose = (e) => {
         const code = e?.code != null ? e.code : 'n/a'
         const reason = e?.reason ? `, reason=${e.reason}` : ''
-        setOutputLog(prev => [...prev, `[${nowTime()}] WebSocket closed (code=${code}${reason})`])
+        setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] WebSocket closed (code=${code}${reason})` }])
         setRunning(false)
         setWaitingForInput(false)
         wsRef.current = null
       }
     } catch (e) {
-      setOutputLog(prev => [...prev, `Run error: ${e?.message || String(e)}`])
+      setOutputLog(prev => [...prev, { kind: 'err', text: `Run error: ${e?.message || String(e)}` }])
       setRunning(false)
     }
   }
@@ -636,6 +644,23 @@ export default function Run() {
   // Clear output log
   const onClearOutput = () => {
     setOutputLog([])
+  }
+
+  // Send stdin with local echo so the user's input is visible next to prompts
+  const sendStdin = () => {
+    if (!(wsRef.current && running && waitingForInput)) return
+    if (!stdinLine) return
+    const data = stdinLine.endsWith('\n') ? stdinLine : (stdinLine + '\n')
+    try { wsRef.current.send(JSON.stringify({ type: 'in', data })) } catch {}
+
+    // Local echo:
+    // - If the last output line did NOT end with a newline, append the user input to that same line
+    //   so prompts like "What is your name? " show "What is your name? Pratham".
+    // - If it did end with a newline or no lines exist, add a new entry.
+    setOutputLog(prev => [...prev, { kind: 'in', text: data }])
+
+    setStdinLine('')
+    setWaitingForInput(false)
   }
 
   // Keyboard Shortcuts
@@ -806,7 +831,7 @@ export default function Run() {
           onClick={openDrawer}
           title="Files & Deps"
         >
-          <Icon name="chevron-left" />
+          <Icon name="chevron-right" />
         </button>
 
         {/* Left overlay drawer */}
@@ -1062,9 +1087,23 @@ export default function Run() {
                       role="tab"
                       aria-selected={outputTab === 'run'}
                       className={`px-3 py-1.5 text-sm rounded-md transition-colors ${outputTab === 'run' ? 'bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] shadow-inner ring-1 ring-[var(--oc-border)]' : 'text-[var(--oc-muted)] hover:bg-[var(--oc-surface-2)]'}`}
-                      onClick={() => setOutputTab('run')}
+                      onClick={() => {
+                        if (outputTab !== 'run') {
+                          setOutputTab('run');
+                          return;
+                        }
+                        if (running) {
+                          try {
+                            wsRef.current?.send(JSON.stringify({ type: 'close' }));
+                            setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] Stop requested` }]);
+                          } catch {}
+                          setWaitingForInput(false);
+                        } else {
+                          runProgram();
+                        }
+                      }}
                     >
-                      Run
+                      {outputTab === 'run' && running ? 'Stop' : 'Run'}
                     </button>
                     <button
                       role="tab"
@@ -1080,15 +1119,24 @@ export default function Run() {
                   <div className="flex items-center gap-1.5">
                     <button
                       data-testid="tid-run-btn"
-                      onClick={runProgram}
-                      disabled={running}
-                      className={`oc-btn-cta h-9 w-9 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)] flex items-center justify-center ${running ? 'opacity-90 cursor-default' : ''}`}
+                      onClick={() => {
+                        if (running) {
+                          try {
+                            wsRef.current?.send(JSON.stringify({ type: 'close' }));
+                            setOutputLog(prev => [...prev, { kind: 'log', text: `[${nowTime()}] Stop requested` }]);
+                          } catch {}
+                          setWaitingForInput(false);
+                        } else {
+                          runProgram();
+                        }
+                      }}
+                      className={`oc-btn-cta h-9 w-9 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)] flex items-center justify-center`}
                       aria-busy={running ? 'true' : 'false'}
-                      aria-label="Run"
-                      title={running ? 'Running…' : 'Run'}
+                      aria-label={running ? 'Stop' : 'Run'}
+                      title={running ? 'Stop' : 'Run'}
                     >
-                      <Icon name="play" />
-                      <span className="sr-only">{running ? 'Running…' : 'Run'}</span>
+                      <Icon name={running ? 'stop' : 'play'} />
+                      <span className="sr-only">{running ? 'Stop' : 'Run'}</span>
                     </button>
 
                     <button
@@ -1122,13 +1170,18 @@ export default function Run() {
                           data-testid="tid-stdout"
                           role="log"
                           aria-live="polite"
-                          className="w-full flex-1 min-h-0 bg-black text-green-400 rounded p-2 font-mono text-xs overflow-auto"
+                          className="w-full flex-1 min-h-0 oc-console rounded p-2 font-mono text-xs overflow-auto whitespace-pre-wrap"
                           style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
                         >
                           {outputLog.length === 0 ? (
                             <div className="opacity-60">Output will appear here</div>
                           ) : (
-                            outputLog.map((line, i) => <div key={i}>{line}</div>)
+                            outputLog.map((line, i) => {
+                              const item = typeof line === 'string' ? { kind: 'out', text: line } : line
+                              const kind = item?.kind || 'out'
+                              const cls = kind === 'log' ? 'oc-line-log' : (kind === 'err' ? 'oc-line-err' : (kind === 'in' ? 'oc-line-in' : 'oc-line-out'))
+                              return <div key={i} className={`whitespace-pre-wrap break-words ${cls}`}>{item?.text ?? ''}</div>
+                            })
                           )}
                         </div>
                         <div className="mt-2 flex items-center gap-2">
@@ -1139,12 +1192,7 @@ export default function Run() {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault()
-                                if (wsRef.current && running && waitingForInput) {
-                                  const data = stdinLine.endsWith('\n') ? stdinLine : (stdinLine + '\n')
-                                  try { wsRef.current.send(JSON.stringify({ type: 'in', data })) } catch {}
-                                  setStdinLine('')
-                                  setWaitingForInput(false)
-                                }
+                                sendStdin()
                               }
                             }}
                             placeholder="Type input and press Enter..."
@@ -1156,12 +1204,7 @@ export default function Run() {
                             className="oc-btn"
                             disabled={!running || !stdinLine || !waitingForInput}
                             onClick={() => {
-                              if (wsRef.current && running && stdinLine && waitingForInput) {
-                                const data = stdinLine.endsWith('\n') ? stdinLine : (stdinLine + '\n')
-                                try { wsRef.current.send(JSON.stringify({ type: 'in', data })) } catch {}
-                                setStdinLine('')
-                                setWaitingForInput(false)
-                              }
+                              sendStdin()
                             }}
                             aria-label="Send input"
                             title="Send to stdin"
@@ -1202,7 +1245,7 @@ export default function Run() {
               onClick={toggleOutputCollapsed}
               title="Expand Output"
             >
-              <Icon name="chevron-right" />
+              <Icon name="chevron-left" />
             </button>
           )}
         </div>

@@ -44,6 +44,10 @@ export function Icon({ name, className = 'size-4', strokeWidth = 2, label }) {
       return (<svg {...props}><path d="M18 6L6 18M6 6l12 12" /></svg>)
     case 'play':
       return (<svg {...props}><path d="M7 6v12l10-6-10-6z" /></svg>)
+    case 'stop':
+      return (<svg {...props}><rect x="6" y="6" width="12" height="12" rx="2" /></svg>)
+    case 'pause':
+      return (<svg {...props}><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>)
     default:
       return null
   }

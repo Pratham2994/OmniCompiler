@@ -18,6 +18,12 @@
 
   --oc-success: #22c55e;
   --oc-danger: #ef4444;
+
+  /* Console line colors (Light) */
+  --oc-console-log: #64748b; /* slate-500 (duller logs) */
+  --oc-console-out: #16a34a; /* green-600 (stdout) */
+  --oc-console-err: #dc2626; /* red-600 (stderr) */
+  --oc-console-in:  #0891b2; /* cyan-700 (stdin echo) */
 }
 
 /* Dark (VS Code Dark+) — also applies when Run page sets theme-dark */
@@ -35,6 +41,12 @@
   --oc-muted: #9ca3af;
   --oc-ring: var(--oc-primary-600);
   --oc-on-primary: #ffffff; /* readable foreground on purple in dark */
+
+  /* Console line colors (Dark) */
+  --oc-console-log: #9ca3af; /* gray-400 (duller logs) */
+  --oc-console-out: #86efac; /* emerald-300 (stdout) */
+  --oc-console-err: #f87171; /* red-400 (stderr) */
+  --oc-console-in:  #7dd3fc; /* sky-300 (stdin echo) */
 }
 
 /* Light (VS Code Light+) — uses :root defaults; class present for clarity */
@@ -58,6 +70,12 @@
   --oc-muted: #e5e7eb;
   --oc-ring: var(--oc-primary-600);
   --oc-on-primary: #000000; /* black text on yellow for true HC */
+
+  /* Console line colors (High Contrast) */
+  --oc-console-log: #bfbfbf; /* lighter gray for logs */
+  --oc-console-out: #f5d90a; /* yellow (stdout) */
+  --oc-console-err: #ff4d4d; /* vivid red (stderr) */
+  --oc-console-in:  #00d0ff; /* bright cyan (stdin echo) */
 }
 
 /* App background/text */
@@ -154,7 +172,7 @@ html, body, #root {
 /* Output console colors */
 .oc-console {
   background: #0a0a0a;
-  color: #86efac;
+  color: var(--oc-console-out); /* default text color = stdout */
   border-radius: 0.5rem;
   border: 1px solid rgba(255,255,255,0.08);
 }
@@ -241,3 +259,9 @@ html, body, #root {
   outline: 1px solid color-mix(in srgb, var(--oc-primary-600) 55%, transparent);
   outline-offset: 0;
 }
+
+/* Per-line console coloring */
+.oc-line-log { color: var(--oc-console-log); }
+.oc-line-out { color: var(--oc-console-out); }
+.oc-line-err { color: var(--oc-console-err); }
+.oc-line-in  { color: var(--oc-console-in); }

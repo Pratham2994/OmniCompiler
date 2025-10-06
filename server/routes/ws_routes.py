@@ -40,6 +40,9 @@ USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no"
 DOCKER_IMAGES = {
     "python": "omni-runner:python",
     "cpp": "omni-runner:cpp",
+    "javascript": "omni-runner:node",
+    "go": "omni-runner:go",
+    "java": "omni-runner:java",
 }
 
 def _should_use_docker():
@@ -135,6 +138,73 @@ async def _start_process(lang, entry, args, workdir):
                 f"elif command -v stdbuf >/dev/null 2>&1; then "
                 f"stdbuf -oL -eL ./app {args_q}; "
                 f"else ./app {args_q}; fi )"
+            )
+            cmd = [
+                "docker", "run", "--rm", "-i",
+                "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+                "-v", mount, "-w", "/work",
+                image,
+                "/bin/sh", "-lc", shell_line
+            ]
+            try:
+                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+            except Exception:
+                cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
+        elif lang == "javascript":
+            # Execute Node.js with line-buffering/PTY fallback similar to C++
+            args_q = " ".join(shlex.quote(a) for a in args)
+            shell_line = (
+                f"( if command -v script >/dev/null 2>&1; then "
+                f"script -qefc 'node {shlex.quote(entry)} {args_q}' /dev/null; "
+                f"elif command -v stdbuf >/dev/null 2>&1; then "
+                f"stdbuf -oL -eL node {shlex.quote(entry)} {args_q}; "
+                f"else node {shlex.quote(entry)} {args_q}; fi )"
+            )
+            cmd = [
+                "docker", "run", "--rm", "-i",
+                "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+                "-v", mount, "-w", "/work",
+                image,
+                "/bin/sh", "-lc", shell_line
+            ]
+            try:
+                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+            except Exception:
+                cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
+        elif lang == "go":
+            # Build if possible; otherwise fallback to 'go run'. Use PTY/stdbuf when available for more prompt-friendly I/O.
+            args_q = " ".join(shlex.quote(a) for a in args)
+            shell_line = (
+                f"( if go build -o app {shlex.quote(entry)} >/dev/null 2>&1; then "
+                f"  if command -v script >/dev/null 2>&1; then "
+                f"    script -qefc './app {args_q}' /dev/null; "
+                f"  elif command -v stdbuf >/dev/null 2>&1; then "
+                f"    stdbuf -oL -eL ./app {args_q}; "
+                f"  else ./app {args_q}; fi; "
+                f"  else go run {shlex.quote(entry)} {args_q}; fi )"
+            )
+            cmd = [
+                "docker", "run", "--rm", "-i",
+                "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+                "-v", mount, "-w", "/work",
+                image,
+                "/bin/sh", "-lc", shell_line
+            ]
+            try:
+                cmd_desc = " ".join(shlex.quote(c) for c in cmd)
+            except Exception:
+                cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
+        elif lang == "java":
+            # Compile the entry and run the main class (assumes no package declaration).
+            main_class = os.path.splitext(os.path.basename(entry))[0]
+            args_q = " ".join(shlex.quote(a) for a in args)
+            shell_line = (
+                f"javac {shlex.quote(entry)} && "
+                f"( if command -v script >/dev/null 2>&1; then "
+                f"script -qefc 'java -Xrs {shlex.quote(main_class)} {args_q}' /dev/null; "
+                f"elif command -v stdbuf >/dev/null 2>&1; then "
+                f"stdbuf -oL -eL java -Xrs {shlex.quote(main_class)} {args_q}; "
+                f"else java -Xrs {shlex.quote(main_class)} {args_q}; fi )"
             )
             cmd = [
                 "docker", "run", "--rm", "-i",
@@ -351,7 +421,12 @@ async def ws_run(ws: WebSocket, sid: str):
                 except Exception:
                     # ignore broken pipe on late input
                     pass
-            elif msg.get("type") == "close":
+            elif msg.get("type") in ("close", "stop"):
+                # Allow both 'close' (existing) and 'stop' (new alias) from client
+                try:
+                    await ws.send_json({"type": "status", "phase": "stopping"})
+                except Exception:
+                    pass
                 try:
                     proc.terminate()
                 except Exception:
