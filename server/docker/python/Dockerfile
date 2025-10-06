@@ -1,18 +1,34 @@
 # server/docker/Dockerfile.python
+# server/docker/Dockerfile.python
 FROM python:3.12-slim
 
-ENV PIP_NO_CACHE_DIR=1
-RUN useradd -m runner && \
-    apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates util-linux bsdextrautils && \
-    rm -rf /var/lib/apt/lists/*
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp \
+    MPLCONFIGDIR=/tmp
 
-# curated safe/common scientific libs (no net/ML/GUI stacks)
+# Minimal OS deps for building some packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      libxml2-dev libxslt1-dev \
+      gcc g++ \
+      && rm -rf /var/lib/apt/lists/*
+
+# Non-root user
+RUN groupadd -g 1000 runner && useradd -m -u 1000 -g 1000 runner
+
+# --- Terminal-Safe Scientific & Utility Stack ---
 RUN pip install --no-cache-dir \
-      "numpy==1.*" \
-      "pandas==2.*" \
-      "sympy==1.*" \
-      "networkx==3.*"
+    numpy==1.* pandas==2.* scipy==1.* sympy==1.* networkx==3.* \
+    statsmodels==0.* scikit-learn==1.* joblib==1.* tqdm==4.* \
+    python-dateutil==2.* pytz==2024.* lxml==5.* beautifulsoup4==4.* \
+    typing-extensions dataclasses colorama==0.* tabulate==0.* rich==13.* \
+    typer==0.* click==8.* ipython==8.* pdbpp==0.*
+
+# Optional async libs
+RUN pip install --no-cache-dir aiohttp==3.* httpx==0.* anyio==4.*
 
 WORKDIR /work
 USER runner
