@@ -173,15 +173,22 @@ async def _start_process(lang, entry, args, workdir):
                 cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
         elif lang == "go":
             # Build if possible; otherwise fallback to 'go run'. Use PTY/stdbuf when available for more prompt-friendly I/O.
+            # For PTY runs, disable terminal echo to avoid duplicating user input in the frontend.
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
                 f"( if go build -o app {shlex.quote(entry)} >/dev/null 2>&1; then "
                 f"  if command -v script >/dev/null 2>&1; then "
-                f"    script -qefc './app {args_q}' /dev/null; "
+                f"    script -qefc 'stty -echo; ./app {args_q}; stty echo' /dev/null; "
                 f"  elif command -v stdbuf >/dev/null 2>&1; then "
                 f"    stdbuf -oL -eL ./app {args_q}; "
                 f"  else ./app {args_q}; fi; "
-                f"  else go run {shlex.quote(entry)} {args_q}; fi )"
+                f"  else "
+                f"    if command -v script >/dev/null 2>&1; then "
+                f"      script -qefc 'stty -echo; go run {shlex.quote(entry)} {args_q}; stty echo' /dev/null; "
+                f"    elif command -v stdbuf >/dev/null 2>&1; then "
+                f"      stdbuf -oL -eL go run {shlex.quote(entry)} {args_q}; "
+                f"    else go run {shlex.quote(entry)} {args_q}; fi; "
+                f"  fi )"
             )
             cmd = [
                 "docker", "run", "--rm", "-i",
