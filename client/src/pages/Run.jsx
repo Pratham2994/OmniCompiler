@@ -11,6 +11,33 @@ const nowTime = () => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
+// Random helpers for resource simulation
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+const randomBetween = (min, max) => Math.random() * (max - min) + min
+
+// Format seconds into h:mm:ss or m:ss
+const formatDuration = (totalSeconds) => {
+  const s = Math.max(0, Math.floor(totalSeconds || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const pad = (n) => n.toString().padStart(2, '0')
+  if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`
+  return `${m}:${pad(sec)}`
+}
+
+// Interpolation helpers for LOC-based simulation
+const lerp = (a, b, t) => a + (b - a) * t
+const interpolateRange = (small, large, t) => [
+  Math.round(lerp(small[0], large[0], t)),
+  Math.round(lerp(small[1], large[1], t)),
+]
+const estimateLOC = (text) => {
+  if (!text) return 0
+  // Count lines, ignore trailing empty lines impact
+  return String(text).split(/\r?\n/).length
+}
+
 const stripExtension = (name) => {
   const idx = name.lastIndexOf('.')
   if (idx > 0) return name.slice(0, idx)
@@ -40,6 +67,29 @@ const placeholderByLangId = {
 const defaultFiles = [
   { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
+
+// Ephemeral autosave (10 minutes TTL)
+const LS_KEY = 'oc_files_snapshot_v1'
+const LS_TTL_MS = 10 * 60 * 1000
+
+// Read a fresh snapshot synchronously (used by lazy initial state)
+const readFreshSnapshot = () => {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data || !Array.isArray(data.files) || typeof data.ts !== 'number') return null
+    if ((Date.now() - data.ts) > LS_TTL_MS) return null
+    const files = data.files.slice(0, 5).map((f, idx) => {
+      const id = String(f?.id || `f_restored_${idx}_${Math.random().toString(36).slice(2,8)}`)
+      return { id, name: String(f?.name || `file_${idx+1}`), language: 'plaintext', content: String(f?.content || '') }
+    })
+    const activeId = (data.activeId && files.find(x => x.id === data.activeId)) ? data.activeId : (files[0]?.id || null)
+    return { files, activeId }
+  } catch {
+    return null
+  }
+}
 
 function useFocusTrap(active) {
   const containerRef = useRef(null)
@@ -117,10 +167,93 @@ export default function Run() {
     apiBase,
   } = useLanguage()
 
-  // Files State
-  const [files, setFiles] = useState(defaultFiles)
-  const [activeFileId, setActiveFileId] = useState('f1')
+  // Files State (hydrate synchronously from localStorage if fresh)
+  const [files, setFiles] = useState(() => {
+    const snap = readFreshSnapshot()
+    return snap?.files || defaultFiles
+  })
+  const [activeFileId, setActiveFileId] = useState(() => {
+    const snap = readFreshSnapshot()
+    return snap?.activeId || (snap?.files?.[0]?.id) || 'f1'
+  })
   const activeFile = useMemo(() => files.find(f => f.id === activeFileId) || files[0], [files, activeFileId])
+
+  // Hydration gate to avoid overwriting snapshot on first mount
+  const [hydrated, setHydrated] = useState(false)
+
+  // Ephemeral autosave support
+  const saveTimerRef = useRef(null)
+
+  // Mark hydrated and clean expired snapshot
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) {
+        const data = JSON.parse(raw)
+        if (data && typeof data.ts === 'number' && (Date.now() - data.ts) > LS_TTL_MS) {
+          localStorage.removeItem(LS_KEY)
+        }
+      }
+    } catch {}
+    setHydrated(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Debounced snapshot saver
+  useEffect(() => {
+    if (!hydrated) return
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        const filesToSave = (files || []).map(f => {
+          let content = f.content
+          try {
+            const m = modelsRef.current?.get(f.id)
+            if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
+          } catch {}
+          return { id: f.id, name: f.name, content }
+        }).slice(0, 5)
+        const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
+        localStorage.setItem(LS_KEY, JSON.stringify(payload))
+      } catch {}
+    }, 400)
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+    }
+  }, [files, activeFileId, hydrated])
+
+  // Flush snapshot on tab hide/close
+  useEffect(() => {
+    if (!hydrated) return
+
+    const flush = () => {
+      try {
+        const filesToSave = (files || []).map(f => {
+          let content = f.content
+          try {
+            const m = modelsRef.current?.get(f.id)
+            if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
+          } catch {}
+          return { id: f.id, name: f.name, content }
+        }).slice(0, 5)
+        const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
+        localStorage.setItem(LS_KEY, JSON.stringify(payload))
+      } catch {}
+    }
+    const visHandler = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('beforeunload', flush)
+    document.addEventListener('visibilitychange', visHandler)
+    return () => {
+      window.removeEventListener('beforeunload', flush)
+      document.removeEventListener('visibilitychange', visHandler)
+    }
+  }, [files, activeFileId, hydrated])
 
   // Per-file language views
   const manualLanguage = getManualLanguage(activeFileId)
@@ -455,6 +588,104 @@ export default function Run() {
   const [stdinLine, setStdinLine] = useState('')
   const [waitingForInput, setWaitingForInput] = useState(false)
 
+  // Resources metrics (frontend-only simulation)
+  const [hasEverRun, setHasEverRun] = useState(false)
+  const [metrics, setMetrics] = useState({ cpu: null, memMB: null, timeSec: 0 })
+  const metricsTimerRef = useRef(null)
+
+  useEffect(() => {
+    if (running) {
+      setHasEverRun(true)
+
+      const lang = getEffectiveLanguage(activeFileId) || 'plaintext'
+
+      // Compute LOC for active file to scale ranges
+      let activeText = ''
+      try {
+        const m = modelsRef.current?.get(activeFileId)
+        activeText = m?.getValue?.() ?? (files.find(f => f.id === activeFileId)?.content ?? '')
+      } catch {}
+      const loc = estimateLOC(activeText)
+
+      // Map LOC to [0..1] where 0 ≈ 10–20 LOC, 1 ≈ 1000 LOC
+      const t = clamp((loc - 20) / (1000 - 20), 0, 1)
+
+      // Per-language small/large ranges derived from provided guidance
+      const small = {
+        python: { cpu: [15, 25], mem: [20, 50] },
+        javascript: { cpu: [10, 15], mem: [25, 60] }, // Node runtime resident
+        java: { cpu: [10, 20], mem: [20, 40] },       // JVM startup spike, small baseline
+        cpp: { cpu: [5, 10], mem: [1, 5] },
+        go: { cpu: [8, 12], mem: [5, 15] },
+        plaintext: { cpu: [0, 3], mem: [5, 20] },
+      }
+      const large = {
+        python: { cpu: [80, 100], mem: [70, 300] },
+        javascript: { cpu: [40, 70], mem: [80, 250] },
+        java: { cpu: [50, 80], mem: [50, 200] },
+        cpp: { cpu: [40, 80], mem: [5, 30] },
+        go: { cpu: [50, 90], mem: [20, 60] },
+        plaintext: { cpu: [0, 5], mem: [5, 20] },
+      }
+
+      const s = small[lang] || small.python
+      const l = large[lang] || large.python
+      const cpuRange = interpolateRange(s.cpu, l.cpu, t)
+      const memRange = interpolateRange(s.mem, l.mem, t)
+
+      const initCpu = randInt(cpuRange[0], cpuRange[1])
+      const initMem = randInt(memRange[0], memRange[1])
+      setMetrics({ cpu: initCpu, memMB: initMem, timeSec: 0 })
+
+      if (metricsTimerRef.current) {
+        clearInterval(metricsTimerRef.current)
+      }
+      metricsTimerRef.current = setInterval(() => {
+        setMetrics(prev => {
+          const prevCpu = typeof prev.cpu === 'number' ? prev.cpu : initCpu
+          const prevMem = typeof prev.memMB === 'number' ? prev.memMB : initMem
+
+          // CPU gently drifts toward a target near the mid of the LOC-scaled range
+          const targetBase = Math.round((cpuRange[0] + cpuRange[1]) / 2)
+          // Bias Python toward the high end for large LOC due to GIL-limited CPU saturation
+          const bias = (lang === 'python' && t > 0.5) ? Math.round((cpuRange[1] - targetBase) * 0.25) : 0
+          const targetCpu = clamp(targetBase + bias, cpuRange[0], cpuRange[1])
+
+          // Jitter
+          let cpuNext = clamp(Math.round(prevCpu + randomBetween(-3, 6)), cpuRange[0], cpuRange[1])
+
+          // Language-specific behavior:
+          // Go: occasional GC dip
+          if (lang === 'go' && Math.random() < 0.08) {
+            cpuNext = clamp(prevCpu - randInt(10, 25), cpuRange[0], cpuRange[1])
+          }
+          // Java: occasional GC bump
+          if (lang === 'java' && Math.random() < 0.06) {
+            cpuNext = clamp(prevCpu + randInt(8, 18), cpuRange[0], cpuRange[1])
+          }
+
+          const cpuAdjusted = clamp(Math.round(cpuNext * 0.85 + targetCpu * 0.15), cpuRange[0], cpuRange[1])
+
+          // Memory: mild upward drift within LOC-scaled range
+          const memNext = clamp(Math.round(prevMem + randomBetween(-2, 4)), memRange[0], memRange[1])
+
+          return { cpu: cpuAdjusted, memMB: memNext, timeSec: (prev.timeSec || 0) + 1 }
+        })
+      }, 1000)
+    } else {
+      if (metricsTimerRef.current) {
+        clearInterval(metricsTimerRef.current)
+        metricsTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (metricsTimerRef.current) {
+        clearInterval(metricsTimerRef.current)
+        metricsTimerRef.current = null
+      }
+    }
+  }, [running, activeFileId])
   // Map monaco language id -> file extension
   const extForLang = (l) => {
     switch ((l || '').toLowerCase()) {
@@ -1220,15 +1451,15 @@ export default function Run() {
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div className="bg-[var(--oc-surface-2)] rounded p-3">
                         <div className="text-xs text-[var(--oc-muted)]">CPU</div>
-                        <div className="text-base">—</div>
+                        <div className="text-base">{!hasEverRun ? '—' : `${Math.round(metrics.cpu ?? 0)}%`}</div>
                       </div>
                       <div className="bg-[var(--oc-surface-2)] rounded p-3">
                         <div className="text-xs text-[var(--oc-muted)]">Memory</div>
-                        <div className="text-base">—</div>
+                        <div className="text-base">{!hasEverRun ? '—' : `${Math.round(metrics.memMB ?? 0)} MB`}</div>
                       </div>
                       <div className="bg-[var(--oc-surface-2)] rounded p-3">
                         <div className="text-xs text-[var(--oc-muted)]">Time</div>
-                        <div className="text-base">—</div>
+                        <div className="text-base">{!hasEverRun ? '—' : formatDuration(metrics.timeSec ?? 0)}</div>
                       </div>
                     </div>
                   )}
