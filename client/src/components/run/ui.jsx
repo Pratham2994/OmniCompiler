@@ -40,6 +40,22 @@ export function Icon({ name, className = 'size-4', strokeWidth = 2, label }) {
       return (<svg {...props}><path d="M9 18l6-6-6-6" /></svg>)
     case 'chevron-left':
       return (<svg {...props}><path d="M15 18l-6-6 6-6" /></svg>)
+    case 'translate':
+      return (
+        <svg {...props}>
+          <path d="M4 7h10" />
+          <path d="M9 5v4" />
+          <path d="M6 20l6-15 6 15" />
+          <path d="M8 16h8" />
+        </svg>
+      )
+    case 'copy':
+      return (
+        <svg {...props}>
+          <rect x="9" y="9" width="11" height="13" rx="2" />
+          <path d="M5 15V5a2 2 0 012-2h9" />
+        </svg>
+      )
     case 'x':
       return (<svg {...props}><path d="M18 6L6 18M6 6l12 12" /></svg>)
     case 'play':

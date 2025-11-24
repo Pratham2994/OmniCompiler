@@ -1030,9 +1030,16 @@ export default function Run() {
             <Link
               to="/debug"
               className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
-              title="Debug page stub"
+              title="Debug workspace"
             >
               Debug
+            </Link>
+            <Link
+              to="/translate"
+              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
+              title="Translate workspace"
+            >
+              Translate
             </Link>
           </nav>
         </div>
