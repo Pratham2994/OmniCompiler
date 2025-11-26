@@ -38,20 +38,23 @@ ALLOW_ORIGINS = [o.strip() for o in _allow_origins_raw.split(",") if o.strip()]
 # 3) script mode from server/ directory
 try:
     from .routes.detect_routes import router as detect_router
-    from .routes.run_routes import router as run_router 
+    from .routes.run_routes import router as run_router
     from .routes.ws_routes import router as ws_router
     from .routes.translate_routes import router as translate_router
+    from .routes.cfg_routes import router as cfg_router
 except ImportError:
     try:
         from server.routes.detect_routes import router as detect_router
         from server.routes.ws_routes import router as ws_router
-        from server.routes.run_routes import router as run_router 
+        from server.routes.run_routes import router as run_router
         from server.routes.translate_routes import router as translate_router
+        from server.routes.cfg_routes import router as cfg_router
     except ImportError:
         from routes.detect_routes import router as detect_router
         from routes.ws_routes import router as ws_router
-        from routes.run_routes import router as run_router 
+        from routes.run_routes import router as run_router
         from routes.translate_routes import router as translate_router
+        from routes.cfg_routes import router as cfg_router
 
 app = FastAPI(title=FASTAPI_TITLE)
 
@@ -68,6 +71,7 @@ def health():
     return {"ok": True}
 
 app.include_router(detect_router)
-app.include_router(run_router) 
+app.include_router(run_router)
 app.include_router(ws_router)
 app.include_router(translate_router)
+app.include_router(cfg_router)
