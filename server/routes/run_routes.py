@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import uuid, re, time, asyncio, tempfile, textwrap, shutil, os, json
+import uuid, re, time, asyncio, tempfile, textwrap, shutil, os, json, shlex
 
 router = APIRouter()
 
@@ -92,6 +92,8 @@ DOCKER_IMAGES = {
     "cpp": "omni-runner:cpp",
     "python": "omni-runner:python",
     "javascript": "omni-runner:node",
+    "java": "omni-runner:java",
+    "go": "omni-runner:go",
 }
 
 def _should_use_docker() -> bool:
@@ -360,6 +362,149 @@ async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoin
         shutil.rmtree(workdir, ignore_errors=True)
         raise
 
+async def _prepare_java_debug_session(files: List[FileSpec], entry: str, breakpoints: list[dict]):
+    """
+    Java debug mode (default package only):
+      - write files to a temp dir
+      - reject package declarations (not supported in current run path)
+      - compile with javac
+      - start jdb on the entry class
+    Returns (workdir, proc, entry_class)
+    """
+    if not _should_use_docker():
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).",
+        )
+
+    workdir = tempfile.mkdtemp(prefix="oc-javadbg-")
+    try:
+        _write_files(files, workdir)
+
+        entry_path = os.path.join(workdir, entry)
+        if not os.path.exists(entry_path):
+            raise HTTPException(status_code=400, detail="entry file not found after write")
+
+        # Reject packages (current run mode assumes default package)
+        try:
+            with open(entry_path, "r", encoding="utf-8") as f:
+                head = f.read(2048)
+            if re.search(r"^\s*package\s+", head, flags=re.MULTILINE):
+                raise HTTPException(status_code=400, detail="Java packages not supported in debug mode")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+        entry_class = os.path.splitext(os.path.basename(entry))[0]
+
+        mount = f"{os.path.abspath(workdir)}:/work:rw"
+        java_sources = [f.name for f in files if f.name.endswith(".java")]
+        if not java_sources:
+            raise HTTPException(status_code=400, detail="no Java source files provided (.java)")
+
+        compile_cmd = [
+            "docker", "run", "--rm", "-i",
+            "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+            "-v", mount, "-w", "/work",
+            DOCKER_IMAGES["java"],
+            "javac", "-g", *java_sources,
+        ]
+        rc, out, err = await _run_cmd(compile_cmd, workdir)
+        if rc != 0:
+            msg = err or out or "javac failed"
+            raise HTTPException(status_code=400, detail=msg)
+
+        jdb_cmd = [
+            "docker", "run", "--rm", "-i",
+            "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+            "-v", mount, "-w", "/work",
+            DOCKER_IMAGES["java"],
+            "jdb",
+            "-sourcepath", "/work",
+            "-classpath", "/work",
+            entry_class,
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *jdb_cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        return workdir, proc, entry_class
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
+async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoints: list[dict]):
+    """
+    Go debug mode:
+      - write files to a temp dir
+      - compile with -N -l for debugging
+      - start delve CLI on the built binary (CLI mode via stdin/stdout)
+    Returns (workdir, proc, binary_path)
+    """
+    if not _should_use_docker():
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).",
+        )
+
+    workdir = tempfile.mkdtemp(prefix="oc-godbg-")
+    try:
+        _write_files(files, workdir)
+
+        go_files = [f.name for f in files if f.name.endswith(".go")]
+        if not go_files:
+            raise HTTPException(status_code=400, detail="no Go source files provided (.go)")
+
+        mount = f"{os.path.abspath(workdir)}:/work:rw"
+        binary_path = "/work/app"
+        compile_cmd = [
+            "docker", "run", "--rm", "-i",
+            "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+            "-v", mount, "-w", "/work",
+            DOCKER_IMAGES["go"],
+            "sh", "-c",
+            f"go build -gcflags \"all=-N -l\" -o {binary_path} {shlex.quote(entry)}",
+        ]
+        rc, out, err = await _run_cmd(compile_cmd, workdir)
+        if rc != 0:
+            msg = err or out or "go build failed"
+            raise HTTPException(status_code=400, detail=msg)
+
+        dlv_cmd = [
+            "docker", "run", "--rm", "-i",
+            "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+            "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
+            "-v", mount, "-w", "/work",
+            DOCKER_IMAGES["go"],
+            "dlv", "exec", "./app", "--log",
+        ]
+
+        # Start dlv; if it dies immediately, surface its output now.
+        proc = await asyncio.create_subprocess_exec(
+            *dlv_cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            rc = await asyncio.wait_for(proc.wait(), timeout=0.5)
+        except asyncio.TimeoutError:
+            rc = None
+        if rc is not None:
+            out, err = await proc.communicate()
+            msg = (err or out or f"dlv exited with code {rc}").decode(errors="ignore")
+            raise HTTPException(status_code=500, detail=msg)
+        return workdir, proc, binary_path
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
 # ---------- Route ----------
 @router.post("/run", response_model=RunResp)
 async def create_run(request: Request, body: RunReq) -> RunResp:
@@ -427,6 +572,32 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
 
             session["workdir"] = workdir
             session["proc"] = proc
+            session["state"] = "debug-ready"
+        elif lang == "java":
+            try:
+                workdir, proc, entry_class = await _prepare_java_debug_session(body.files, body.entry, breakpoints)
+            except HTTPException:
+                raise
+            except Exception as e:
+                msg = str(e) or repr(e)
+                raise HTTPException(status_code=500, detail=msg)
+
+            session["workdir"] = workdir
+            session["proc"] = proc
+            session["entry_class"] = entry_class
+            session["state"] = "debug-ready"
+        elif lang == "go":
+            try:
+                workdir, proc, binary_path = await _prepare_go_debug_session(body.files, body.entry, breakpoints)
+            except HTTPException:
+                raise
+            except Exception as e:
+                msg = str(e) or repr(e)
+                raise HTTPException(status_code=500, detail=msg)
+
+            session["workdir"] = workdir
+            session["proc"] = proc
+            session["binary_path"] = binary_path
             session["state"] = "debug-ready"
 
     SESSIONS[sid] = session

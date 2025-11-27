@@ -872,6 +872,716 @@ async def _handle_js_debug(ws: WebSocket, sess: dict):
             shutil.rmtree(workdir, ignore_errors=True)
         return await ws.close()
 
+async def _handle_java_debug(ws: WebSocket, sess: dict):
+    lang = sess.get("lang")
+    entry = sess.get("entry")
+    entry_class = sess.get("entry_class") or os.path.splitext(os.path.basename(entry or ""))[0]
+    entry_file = entry or ""
+    breakpoints = list(sess.get("breakpoints") or [])
+    workdir = sess.get("workdir")
+    proc = sess.get("proc")
+
+    if not proc or not workdir:
+        await ws.send_json({"type": "err", "data": "debug session missing process/workdir"})
+        return await ws.close()
+    if proc.returncode is not None:
+        out, err = b"", b""
+        try:
+            out, err = proc.communicate(timeout=1)
+        except Exception:
+            pass
+        msg = "debug session already ended"
+        detail_parts = []
+        if proc.returncode is not None:
+            detail_parts.append(f"rc={proc.returncode}")
+        if out:
+            detail_parts.append(f"stdout={out.decode(errors='ignore').strip()}")
+        if err:
+            detail_parts.append(f"stderr={err.decode(errors='ignore').strip()}")
+        if detail_parts:
+            msg = f"{msg} ({'; '.join(detail_parts)})"
+        await ws.send_json({"type": "err", "data": msg})
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+        return await ws.close()
+
+async def _handle_go_debug(ws: WebSocket, sess: dict):
+    lang = sess.get("lang")
+    entry = sess.get("entry")
+    breakpoints = list(sess.get("breakpoints") or [])
+    workdir = sess.get("workdir")
+    proc = sess.get("proc")
+
+    if not proc or not workdir:
+        await ws.send_json({"type": "err", "data": "debug session missing process/workdir"})
+        return await ws.close()
+    if proc.returncode is not None:
+        out, err = b"", b""
+        try:
+            out, err = proc.communicate(timeout=1)
+        except Exception:
+            pass
+        msg = "debug session already ended"
+        detail_parts = []
+        if proc.returncode is not None:
+            detail_parts.append(f"rc={proc.returncode}")
+        if out:
+            detail_parts.append(f"stdout={out.decode(errors='ignore').strip()}")
+        if err:
+            detail_parts.append(f"stderr={err.decode(errors='ignore').strip()}")
+        if detail_parts:
+            msg = f"{msg} ({'; '.join(detail_parts)})"
+        await ws.send_json({"type": "err", "data": msg})
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+        return await ws.close()
+
+    try:
+        await ws.send_json({"type": "status", "phase": "starting", "lang": lang, "entry": entry, "mode": "debug"})
+    except Exception:
+        pass
+
+    exit_event = asyncio.Event()
+    cmd_lock = asyncio.Lock()
+    paused = asyncio.Event()
+    command_future: asyncio.Future | None = None
+    command_buffer: list[str] = []
+
+    async def send_cmd(cmd: str):
+        if proc.stdin is None or proc.stdin.is_closing():
+            raise RuntimeError("dlv stdin closed")
+        async with cmd_lock:
+            proc.stdin.write((cmd + "\n").encode())
+            await proc.stdin.drain()
+
+    async def send_query(cmd: str, timeout: float = 3.0) -> list[str]:
+        nonlocal command_future, command_buffer
+        if command_future is not None:
+            raise RuntimeError("command already in flight")
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        command_future = fut
+        command_buffer = []
+        await send_cmd(cmd)
+        try:
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except Exception:
+            if not fut.done():
+                fut.cancel()
+            return list(command_buffer)
+        finally:
+            if command_future is fut:
+                command_future = None
+                command_buffer = []
+
+    async def add_bp(bp):
+        file = bp.get("file")
+        line = bp.get("line")
+        if not file or not line:
+            return
+        await send_cmd(f"break {file}:{line}")
+
+    async def remove_bp(bp):
+        file = bp.get("file")
+        line = bp.get("line")
+        if not file or not line:
+            return
+        await send_cmd(f"clear {file}:{line}")
+
+    async def sync_breakpoints():
+        for bp in breakpoints:
+            try:
+                await add_bp(bp)
+            except Exception:
+                pass
+        try:
+            await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"synced": True}})
+        except Exception:
+            pass
+
+    async def handle_paused(file: str | None, line: int | None):
+        # Collect stack and locals from delve
+        stack = []
+        locals_map: dict[str, str] = {}
+
+        try:
+            stack_lines = await send_query("stack")
+            for ln in stack_lines:
+                # Example: 0  0x10565c0 in main.main /work/main.go:7
+                m = re.match(r'\s*\d+\s+\S+\s+in\s+([^\s]+)\s+([^\s]+):(\d+)', ln)
+                if not m:
+                    continue
+                func = m.group(1)
+                f = m.group(2)
+                try:
+                    lno = int(m.group(3))
+                except Exception:
+                    lno = None
+                stack.append({"file": f, "line": lno, "function": func})
+            if stack and (file is None or line is None):
+                file = file or stack[0].get("file")
+                line = line or stack[0].get("line")
+        except Exception:
+            pass
+
+        try:
+            loc_lines = await send_query("locals")
+            for ln in loc_lines:
+                if "=" not in ln:
+                    continue
+                name, val = ln.split("=", 1)
+                locals_map[name.strip()] = val.strip()
+        except Exception:
+            pass
+
+        payload = {
+            "file": file,
+            "line": line,
+            "function": stack[0].get("function") if stack else None,
+            "stack": stack,
+            "locals": locals_map,
+        }
+        try:
+            await ws.send_json({"type": "debug_event", "event": "paused", "payload": payload})
+        except Exception:
+            pass
+        paused.set()
+
+    async def pump_stdout():
+        try:
+            while True:
+                raw = await proc.stdout.readline()
+                if not raw:
+                    exit_event.set()
+                    break
+                text = raw.decode(errors="ignore").rstrip("\n")
+                if not text:
+                    continue
+
+                stripped = text.strip()
+
+                # Capture responses for in-flight queries until prompt "(dlv)"
+                if command_future is not None:
+                    if stripped.endswith("(dlv)"):
+                        if not command_future.done():
+                            command_future.set_result(command_buffer)
+                        command_future = None
+                        command_buffer = []
+                        continue
+                    command_buffer.append(text)
+                    continue
+
+                # Detect prompt
+                if stripped.endswith("(dlv)"):
+                    continue
+
+                # Detect pause line e.g., "> main.main() /work/main.go:5 (hits goroutine ...)"
+                m = re.match(r'>\s+[^\s]+\s+\(([^:]+):(\d+)\)', text)
+                if m:
+                    file = m.group(1)
+                    try:
+                        line = int(m.group(2))
+                    except Exception:
+                        line = None
+                    await handle_paused(file, line)
+                    continue
+
+                try:
+                    await ws.send_json({"type": "out", "data": text + "\n"})
+                except Exception:
+                    pass
+        except Exception:
+            exit_event.set()
+
+    async def pump_stderr():
+        try:
+            while True:
+                raw = await proc.stderr.readline()
+                if not raw:
+                    break
+                text = raw.decode(errors="ignore")
+                if text:
+                    try:
+                        await ws.send_json({"type": "err", "data": text})
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    out_task = asyncio.create_task(pump_stdout())
+    err_task = asyncio.create_task(pump_stderr())
+
+    try:
+        if breakpoints:
+            await sync_breakpoints()
+        await send_cmd("continue")
+    except Exception as e:
+        try:
+            await ws.send_json({"type": "err", "data": f"failed to start dlv: {e}"})
+        except Exception:
+            pass
+
+    try:
+        await ws.send_json({"type": "status", "phase": "running", "mode": "debug"})
+    except Exception:
+        pass
+
+    try:
+        while True:
+            recv_task = asyncio.create_task(ws.receive_text())
+            exit_task = asyncio.create_task(exit_event.wait())
+            done, pending = await asyncio.wait({recv_task, exit_task}, return_when=asyncio.FIRST_COMPLETED)
+
+            if exit_task in done:
+                recv_task.cancel()
+                break
+
+            try:
+                raw = await recv_task
+            except WebSocketDisconnect:
+                break
+
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                await ws.send_json({"type": "err", "data": f"invalid msg: {raw}"})
+                continue
+
+            if msg.get("type") == "debug_cmd":
+                cmd = msg.get("command")
+                try:
+                    if cmd == "continue":
+                        paused.clear()
+                        await send_cmd("continue")
+                    elif cmd == "next":
+                        paused.clear()
+                        await send_cmd("next")
+                    elif cmd == "step_in":
+                        paused.clear()
+                        await send_cmd("step")
+                    elif cmd == "step_out":
+                        paused.clear()
+                        await send_cmd("stepout")
+                    elif cmd == "add_breakpoint":
+                        bp = {"file": msg.get("file"), "line": msg.get("line")}
+                        if bp not in breakpoints:
+                            breakpoints.append(bp)
+                        await add_bp(bp)
+                        await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"added": [bp]}})
+                    elif cmd == "remove_breakpoint":
+                        target = {"file": msg.get("file"), "line": msg.get("line")}
+                        breakpoints[:] = [b for b in breakpoints if not (b.get("file") == target["file"] and b.get("line") == target["line"])]
+                        await remove_bp(target)
+                        await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"removed": [target]}})
+                    elif cmd == "evaluate":
+                        expr = msg.get("expr", "")
+                        try:
+                            res_lines = await send_query(f"print {expr}")
+                            res = "\n".join(res_lines).strip()
+                        except Exception as e:
+                            res = f"error: {e}"
+                        await ws.send_json({"type": "debug_event", "event": "evaluate_result", "payload": {"expr": expr, "value": res}})
+                    elif cmd == "stop":
+                        await send_cmd("quit")
+                        exit_event.set()
+                        break
+                    else:
+                        await ws.send_json({"type": "err", "data": f"unknown debug cmd: {cmd}"})
+                except Exception as e:
+                    await ws.send_json({"type": "err", "data": f"debug command failed: {e}"})
+            elif msg.get("type") == "stdin":
+                continue
+            else:
+                await ws.send_json({"type": "err", "data": f"unknown msg: {msg}"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if proc.returncode is None:
+            try:
+                proc.terminate()
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        rc = -1
+        try:
+            rc = await proc.wait()
+        except Exception:
+            pass
+        for t in (out_task, err_task):
+            t.cancel()
+        try:
+            from starlette.websockets import WebSocketState  # type: ignore
+            state = getattr(ws, "application_state", None)
+            if state is None or state != WebSocketState.DISCONNECTED:
+                try:
+                    await ws.send_json({"type": "exit", "code": rc})
+                except Exception:
+                    pass
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+        except Exception:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        sess["proc"] = None
+        sess["state"] = "closed"
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    try:
+        await ws.send_json({"type": "status", "phase": "starting", "lang": lang, "entry": entry, "mode": "debug"})
+    except Exception:
+        pass
+
+    exit_event = asyncio.Event()
+    cmd_lock = asyncio.Lock()
+    paused = asyncio.Event()
+    command_future: asyncio.Future | None = None
+    command_buffer: list[str] = []
+
+    async def send_raw(cmd: str):
+        if proc.stdin is None or proc.stdin.is_closing():
+            raise RuntimeError("jdb stdin closed")
+        async with cmd_lock:
+            proc.stdin.write((cmd + "\n").encode())
+            await proc.stdin.drain()
+
+    async def send_query(cmd: str, timeout: float = 3.0) -> list[str]:
+        nonlocal command_future, command_buffer
+        if command_future is not None:
+            raise RuntimeError("command already in flight")
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        command_future = fut
+        command_buffer = []
+        await send_raw(cmd)
+        try:
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except Exception:
+            # On timeout/error, return whatever we buffered so far
+            if not fut.done():
+                fut.cancel()
+            return list(command_buffer)
+        finally:
+            if command_future is fut:
+                command_future = None
+                command_buffer = []
+
+    async def add_bp(bp):
+        file = bp.get("file")
+        line = bp.get("line")
+        if not file or not line:
+            return
+        cls = os.path.splitext(os.path.basename(file))[0]
+        await send_raw(f"stop at {cls}:{line}")
+
+    async def remove_bp(bp):
+        file = bp.get("file")
+        line = bp.get("line")
+        if not file or not line:
+            return
+        cls = os.path.splitext(os.path.basename(file))[0]
+        await send_raw(f"clear {cls}:{line}")
+
+    async def sync_breakpoints():
+        # jdb has no bulk set; apply individually
+        for bp in breakpoints:
+            try:
+                await add_bp(bp)
+            except Exception:
+                pass
+        try:
+            await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"synced": True}})
+        except Exception:
+            pass
+
+    async def handle_paused(file: str | None, line: int | None, reason: str | None = None):
+        """
+        Collect stack and locals when paused and emit a single paused event.
+        """
+        if file is None:
+            file = entry_file or None
+
+        stack = []
+        locals_map: dict[str, str] = {}
+
+        # Grab stack frames
+        where_lines = await send_query("where")
+        for ln in where_lines:
+            m = re.search(r'\[\d+\]\s+([^\s]+)\s+\(([^:]+):(\d+)\)', ln)
+            if not m:
+                continue
+            func = m.group(1)
+            f = m.group(2)
+            try:
+                lno = int(m.group(3))
+            except Exception:
+                lno = None
+            stack.append({"file": f, "line": lno, "function": func})
+        if stack and (line is None or file is None):
+            file = file or stack[0].get("file")
+            line = line or stack[0].get("line")
+
+        # Grab locals
+        loc_lines = await send_query("locals")
+        for ln in loc_lines:
+            if "=" not in ln:
+                continue
+            name, val = ln.split("=", 1)
+            locals_map[name.strip()] = val.strip()
+
+        payload = {
+            "file": file,
+            "line": line,
+            "function": stack[0].get("function") if stack else None,
+            "stack": stack,
+            "locals": locals_map,
+        }
+        try:
+            await ws.send_json({"type": "debug_event", "event": "paused", "payload": payload})
+        except Exception:
+            pass
+        paused.set()
+
+    async def pump_stdout():
+        nonlocal command_future, command_buffer
+        try:
+            while True:
+                raw = await proc.stdout.readline()
+                if not raw:
+                    exit_event.set()
+                    break
+                text = raw.decode(errors="ignore").rstrip("\n")
+                if not text:
+                    continue
+
+                # Capture responses for in-flight queries (where/locals/eval)
+                if command_future is not None:
+                    # Collect lines for the active query until we see a prompt ending with ">"
+                    if text.strip().endswith(">"):
+                        if not command_future.done():
+                            command_future.set_result(command_buffer)
+                        command_future = None
+                        command_buffer = []
+                        continue
+                    command_buffer.append(text)
+                    continue
+
+                # Suppress noisy jdb automatic prints we will replace with structured data
+                if text.startswith("Local variables:") or text.startswith("Method arguments:"):
+                    continue
+                if re.match(r'^\s*(args|h|x)\s*=', text):
+                    continue
+
+                # Detect stop/step
+                if "Breakpoint hit:" in text or "Step completed:" in text:
+                    m = re.search(r'\(([^:]+\.java):(\d+)\)', text)
+                    file = m.group(1) if m else None
+                    try:
+                        line = int(m.group(2)) if m else None
+                    except Exception:
+                        line = None
+                    await handle_paused(file, line, "breakpoint")
+                    continue
+
+                # Frame echo line (e.g., "main[1] [1] Main.main (Main.java:5)")
+                m_frame = re.match(r'.*\[\d+\]\s+([^\s]+)\s+\(([^:]+):(\d+)\)', text)
+                if m_frame:
+                    func = m_frame.group(1)
+                    file = m_frame.group(2)
+                    try:
+                        line_no = int(m_frame.group(3))
+                    except Exception:
+                        line_no = None
+                    await handle_paused(file, line_no, "step")
+                    continue
+
+                # Source echo lines (e.g., "3 Helper h = new Helper();", "main[1] 3 Helper h = new Helper();")
+                m_src = re.match(r'\s*(?:\w+\[\d+\]\s+)?(\d+)\s+.+', text)
+                if m_src and not paused.is_set():
+                    try:
+                        line_no = int(m_src.group(1))
+                    except Exception:
+                        line_no = None
+                    await handle_paused(entry_file, line_no, "step")
+                    continue
+
+                if "Exception occurred:" in text:
+                    m = re.search(r'\(([^:]+\.java):(\d+)\)', text)
+                    file = m.group(1) if m else None
+                    try:
+                        line = int(m.group(2)) if m else None
+                    except Exception:
+                        line = None
+                    try:
+                        await ws.send_json({"type": "debug_event", "event": "exception", "payload": {"file": file, "line": line, "message": text}})
+                    except Exception:
+                        pass
+                    paused.set()
+                    continue
+
+                # Prompts are typically ">" or "<class>[1]"
+                if text.strip().endswith(">"):
+                    continue
+
+                # Forward as output
+                try:
+                    await ws.send_json({"type": "out", "data": text + "\n"})
+                except Exception:
+                    pass
+        except Exception:
+            exit_event.set()
+
+    async def pump_stderr():
+        try:
+            while True:
+                raw = await proc.stderr.readline()
+                if not raw:
+                    break
+                text = raw.decode(errors="ignore")
+                if text:
+                    try:
+                        await ws.send_json({"type": "err", "data": text})
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    out_task = asyncio.create_task(pump_stdout())
+    err_task = asyncio.create_task(pump_stderr())
+
+    # Apply breakpoints then run
+    try:
+        if breakpoints:
+            await sync_breakpoints()
+        await send_raw("run")
+    except Exception as e:
+        try:
+            await ws.send_json({"type": "err", "data": f"failed to start jdb: {e}"})
+        except Exception:
+            pass
+
+    try:
+        await ws.send_json({"type": "status", "phase": "running", "mode": "debug"})
+    except Exception:
+        pass
+
+    try:
+        while True:
+            recv_task = asyncio.create_task(ws.receive_text())
+            exit_task = asyncio.create_task(exit_event.wait())
+            done, pending = await asyncio.wait({recv_task, exit_task}, return_when=asyncio.FIRST_COMPLETED)
+
+            if exit_task in done:
+                recv_task.cancel()
+                break
+
+            try:
+                raw = await recv_task
+            except WebSocketDisconnect:
+                break
+
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                await ws.send_json({"type": "err", "data": f"invalid msg: {raw}"})
+                continue
+
+            if msg.get("type") == "debug_cmd":
+                cmd = msg.get("command")
+                try:
+                    if cmd == "continue":
+                        paused.clear()
+                        await send_raw("cont")
+                    elif cmd == "next":
+                        paused.clear()
+                        await send_raw("next")
+                    elif cmd == "step_in":
+                        paused.clear()
+                        await send_raw("step")
+                    elif cmd == "step_out":
+                        paused.clear()
+                        await send_raw("step up")
+                    elif cmd == "add_breakpoint":
+                        bp = {"file": msg.get("file"), "line": msg.get("line")}
+                        if bp not in breakpoints:
+                            breakpoints.append(bp)
+                        await add_bp(bp)
+                        await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"added": [bp]}})
+                    elif cmd == "remove_breakpoint":
+                        target = {"file": msg.get("file"), "line": msg.get("line")}
+                        breakpoints[:] = [b for b in breakpoints if not (b.get("file") == target["file"] and b.get("line") == target["line"])]
+                        await remove_bp(target)
+                        await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"removed": [target]}})
+                    elif cmd == "evaluate":
+                        if not paused.is_set():
+                            await ws.send_json({"type": "debug_event", "event": "evaluate_result", "payload": {"expr": msg.get("expr", ""), "error": "not paused"}})
+                            continue
+                        expr = msg.get("expr", "")
+                        try:
+                            res_lines = await send_query(f"print {expr}")
+                            res = "\n".join(res_lines).strip()
+                        except Exception as e:
+                            res = f"error: {e}"
+                        await ws.send_json({"type": "debug_event", "event": "evaluate_result", "payload": {"expr": expr, "value": res}})
+                    elif cmd == "stop":
+                        await send_raw("quit")
+                        exit_event.set()
+                        break
+                    else:
+                        await ws.send_json({"type": "err", "data": f"unknown debug cmd: {cmd}"})
+                except Exception as e:
+                    await ws.send_json({"type": "err", "data": f"debug command failed: {e}"})
+            elif msg.get("type") == "stdin":
+                continue
+            else:
+                await ws.send_json({"type": "err", "data": f"unknown msg: {msg}"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if proc.returncode is None:
+            try:
+                proc.terminate()
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        rc = -1
+        try:
+            rc = await proc.wait()
+        except Exception:
+            pass
+        for t in (out_task, err_task):
+            t.cancel()
+        try:
+            from starlette.websockets import WebSocketState  # type: ignore
+            state = getattr(ws, "application_state", None)
+            if state is None or state != WebSocketState.DISCONNECTED:
+                try:
+                    await ws.send_json({"type": "exit", "code": rc})
+                except Exception:
+                    pass
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+        except Exception:
+            # fall back silently if starlette isn't available
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        sess["proc"] = None
+        sess["state"] = "closed"
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
     try:
         await ws.send_json({"type": "status", "phase": "starting", "lang": lang, "entry": entry, "mode": "debug"})
     except Exception:
@@ -1092,6 +1802,10 @@ async def ws_run(ws: WebSocket, sid: str):
             return await _handle_python_debug(ws, sess)
         elif lang == "javascript":
             return await _handle_js_debug(ws, sess)
+        elif lang == "java":
+            return await _handle_java_debug(ws, sess)
+        elif lang == "go":
+            return await _handle_go_debug(ws, sess)
         else:
             await ws.send_json({"type":"err","data": f"debug not implemented for lang={lang}"})
             return await ws.close()
