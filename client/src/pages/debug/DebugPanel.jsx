@@ -201,18 +201,37 @@ export default function DebugPanel({
               </div>
             </div>
 
-            <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Variables</div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                <div className="text-[var(--oc-muted)]">
-                  No active debug session. Variables will appear here when you start debugging.
+            <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2 gap-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Variables</div>
                 </div>
-                <ul className="mt-2 font-mono text-xs space-y-1">
-                  <li>// locals: --</li>
-                  <li>// globals: --</li>
-                </ul>
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <div className="text-[var(--oc-muted)]">
+                    No active debug session. Variables will appear here when you start debugging.
+                  </div>
+                  <ul className="mt-2 font-mono text-xs space-y-1">
+                    <li>// locals: --</li>
+                    <li>// globals: --</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="h-px bg-[var(--oc-border)] opacity-50" aria-hidden="true" />
+
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Call Stack</div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <div className="text-[var(--oc-muted)]">
+                    Stack frames will appear here when a debug session is active.
+                  </div>
+                  <ul className="mt-2 font-mono text-xs space-y-1">
+                    <li>// frame[0]: --</li>
+                    <li>// frame[1]: --</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
