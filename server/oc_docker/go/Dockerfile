@@ -1,8 +1,8 @@
 # server/docker/Dockerfile.go
 FROM golang:1.22-alpine
 
-# utilities for interactive runs: script (util-linux), stdbuf (coreutils), certs
-RUN apk add --no-cache coreutils util-linux ca-certificates
+# utilities for interactive runs: script (util-linux), stdbuf (coreutils), certs, debugger (delve)
+RUN apk add --no-cache coreutils util-linux ca-certificates delve
 
 # create non-root; Alpine uses adduser syntax
 RUN adduser -D runner

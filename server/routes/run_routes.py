@@ -91,6 +91,7 @@ USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no"
 DOCKER_IMAGES = {
     "cpp": "omni-runner:cpp",
     "python": "omni-runner:python",
+    "javascript": "omni-runner:node",
 }
 
 def _should_use_docker() -> bool:
@@ -283,6 +284,82 @@ async def _prepare_python_debug_session(files: List[FileSpec], entry: str, break
         shutil.rmtree(workdir, ignore_errors=True)
         raise
 
+async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoints: list[dict]):
+    """
+    For JavaScript debug mode:
+      - write files to a temp dir
+      - copy oc_js_debugger.js into the workdir
+      - start the inspector-based debugger runner inside node image
+    Returns (workdir, proc)
+    """
+    if not _should_use_docker():
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).",
+        )
+
+    workdir = tempfile.mkdtemp(prefix="oc-jsdbg-")
+    try:
+        _write_files(files, workdir)
+
+        dbg_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_js_debugger.js"))
+        dbg_dst = os.path.join(workdir, "oc_js_debugger.js")
+        shutil.copy2(dbg_src, dbg_dst)
+
+        init_bp_env = json.dumps(
+            [{"file": bp.get("file"), "line": bp.get("line")} for bp in (breakpoints or [])],
+            separators=(",", ":"),
+        )
+
+        mount = f"{os.path.abspath(workdir)}:/work:rw"
+        cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "--network",
+            "none",
+            "--cpus",
+            "1",
+            "--memory",
+            "512m",
+            "--pids-limit",
+            "256",
+            "-v",
+            mount,
+            "-w",
+            "/work",
+            "-e",
+            f"OC_INIT_BPS={init_bp_env}",
+            DOCKER_IMAGES["javascript"],
+            "node",
+            "oc_js_debugger.js",
+            entry,
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Ensure debugger actually started; if it exited immediately (e.g., missing image), surface error now.
+        try:
+            rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            rc = None
+        if rc is not None:
+            out, err = await proc.communicate()
+            msg = (err or out or f"node debugger exited with code {rc}").decode(errors="ignore")
+            raise HTTPException(status_code=500, detail=msg)
+
+        return workdir, proc
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
 # ---------- Route ----------
 @router.post("/run", response_model=RunResp)
 async def create_run(request: Request, body: RunReq) -> RunResp:
@@ -330,6 +407,18 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
         elif lang == "python":
             try:
                 workdir, proc = await _prepare_python_debug_session(body.files, body.entry, breakpoints)
+            except HTTPException:
+                raise
+            except Exception as e:
+                msg = str(e) or repr(e)
+                raise HTTPException(status_code=500, detail=msg)
+
+            session["workdir"] = workdir
+            session["proc"] = proc
+            session["state"] = "debug-ready"
+        elif lang == "javascript":
+            try:
+                workdir, proc = await _prepare_js_debug_session(body.files, body.entry, breakpoints)
             except HTTPException:
                 raise
             except Exception as e:

@@ -27,6 +27,7 @@ RUN npm install -g \
     console-table-printer \
     cli-progress \
     lz-string \
+    ws \
     chance \
     crypto-js
 
