@@ -15,7 +15,6 @@ export const typeColor = (t) => {
 }
 
 export const typeLegend = [
-  { label: 'Function', type: 'function' },
   { label: 'Class', type: 'class' },
   { label: 'Method', type: 'method' },
   { label: 'If/Else', type: 'if' },
@@ -78,12 +77,40 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint 
     ))
   }
 
+  const matchWorkspaceFile = (candidates = []) => {
+    for (const candidate of candidates) {
+      if (!candidate) continue
+      const normalized = candidate.toLowerCase()
+      const baseNoExt = normalized.replace(/\.[^.]+$/, '')
+      const match = indexedFiles.find(f => (
+        f.__keys.loweredBase === normalized ||
+        f.__keys.loweredBaseNoExt === baseNoExt
+      ))
+      if (match) return match
+    }
+    return null
+  }
+
   const findFileForModule = (moduleName) => {
     if (!moduleName) return null
-    const normalized = String(moduleName).replace(/\\./g, '/').split('/').pop()
-    if (!normalized) return null
-    const lowered = normalized.toLowerCase()
-    return indexedFiles.find(f => f.__keys.loweredBaseNoExt === lowered) || null
+    const lastSegment = String(moduleName).split('.').pop()
+    if (!lastSegment) return null
+    return matchWorkspaceFile([`${lastSegment}.py`, lastSegment])
+  }
+
+  const findFileForModuleRef = (moduleRef) => {
+    if (!moduleRef) return null
+    const cleaned = String(moduleRef).replace(/['"]/g, '').replace(/^\.\//, '').replace(/^\.\//, '')
+    const parts = cleaned.split(/[\\/]/)
+    const lastSegment = parts.pop() || cleaned
+    const normalized = lastSegment.toLowerCase()
+    const baseNoExt = normalized.replace(/\.[^.]+$/, '')
+    const candidates = new Set([normalized])
+    if (!normalized.includes('.')) {
+      ;['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.go', '.java', '.cpp', '.cc', '.hpp', '.h'].forEach(ext => candidates.add(`${baseNoExt}${ext}`))
+      candidates.add(baseNoExt)
+    }
+    return matchWorkspaceFile([...candidates])
   }
 
   const inferLanguageFromFileName = (fileName = '', fallback = 'plaintext') => {
@@ -255,10 +282,170 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint 
     return annotations
   }
 
+  const buildJsImportAnnotations = (fileName) => {
+    const src = resolveFileData(fileName)
+    if (!src) return []
+    const lines = (src.content || '').split(/\r?\n/)
+    const annotations = []
+    const seen = new Set()
+    const addAnnotation = (moduleRef, idx, code) => {
+      if (!moduleRef) return
+      const key = `${idx}:${moduleRef}`
+      if (seen.has(key)) return
+      seen.add(key)
+      const targetFileEntry = findFileForModuleRef(moduleRef)
+      const targetFileName = targetFileEntry?.name || null
+      const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : moduleRef
+      annotations.push({
+        type: 'import',
+        module: moduleRef,
+        alias: null,
+        line: idx + 1,
+        code,
+        targetFileName,
+        targetFileLabel,
+        jumpLine: targetFileEntry ? 1 : idx + 1,
+      })
+    }
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('//')) return
+      let match = trimmed.match(/^import\s+(?:.+?\s+from\s+)?['"]([^'"]+)['"]/)
+      if (match) {
+        addAnnotation(match[1], idx, trimmed)
+        return
+      }
+      match = trimmed.match(/require\(\s*['"]([^'"]+)['"]\s*\)/)
+      if (match) {
+        addAnnotation(match[1], idx, trimmed)
+      }
+    })
+
+    return annotations
+  }
+
+  const buildCppImportAnnotations = (fileName) => {
+    const src = resolveFileData(fileName)
+    if (!src) return []
+    const lines = (src.content || '').split(/\r?\n/)
+    const annotations = []
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim()
+      const match = trimmed.match(/^#include\s+"([^"]+)"/)
+      if (match) {
+        const moduleRef = match[1]
+        const targetFileEntry = findFileForModuleRef(moduleRef)
+        const targetFileName = targetFileEntry?.name || null
+        const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : moduleRef
+        annotations.push({
+          type: 'import',
+          module: moduleRef,
+          alias: null,
+          line: idx + 1,
+          code: trimmed,
+          targetFileName,
+          targetFileLabel,
+          jumpLine: targetFileEntry ? 1 : idx + 1,
+        })
+      }
+    })
+    return annotations
+  }
+
+  const buildGoImportAnnotations = (fileName) => {
+    const src = resolveFileData(fileName)
+    if (!src) return []
+    const lines = (src.content || '').split(/\r?\n/)
+    const annotations = []
+    let inBlock = false
+
+    const addAnnotation = (moduleRef, idx, code) => {
+      if (!moduleRef) return
+      const lastSegment = moduleRef.split('/').pop()
+      const targetFileEntry = matchWorkspaceFile([lastSegment, `${lastSegment}.go`])
+      const targetFileName = targetFileEntry?.name || null
+      const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : moduleRef
+      annotations.push({
+        type: 'import',
+        module: moduleRef,
+        alias: null,
+        line: idx + 1,
+        code,
+        targetFileName,
+        targetFileLabel,
+        jumpLine: targetFileEntry ? 1 : idx + 1,
+      })
+    }
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('//')) return
+      if (trimmed.startsWith('import (')) {
+        inBlock = true
+        return
+      }
+      if (inBlock) {
+        if (trimmed.startsWith(')')) {
+          inBlock = false
+          return
+        }
+        const match = trimmed.match(/^(?:[A-Za-z_][\w]*\s+)?"([^"]+)"/)
+        if (match) addAnnotation(match[1], idx, trimmed)
+        return
+      }
+      const match = trimmed.match(/^import\s+(?:[A-Za-z_][\w]*\s+)?"([^"]+)"/)
+      if (match) addAnnotation(match[1], idx, trimmed)
+    })
+
+    return annotations
+  }
+
+  const buildJavaImportAnnotations = (fileName) => {
+    const src = resolveFileData(fileName)
+    if (!src) return []
+    const lines = (src.content || '').split(/\r?\n/)
+    const annotations = []
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('import ')) return
+      const match = trimmed.match(/^import\s+([A-Za-z0-9_\.]+);/)
+      if (!match) return
+      const moduleRef = match[1]
+      const className = moduleRef.split('.').pop()
+      const targetFileEntry = matchWorkspaceFile([`${className}.java`, className])
+      const targetFileName = targetFileEntry?.name || null
+      const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : moduleRef
+      annotations.push({
+        type: 'import',
+        module: moduleRef,
+        alias: className,
+        line: idx + 1,
+        code: trimmed,
+        targetFileName,
+        targetFileLabel,
+        jumpLine: targetFileEntry ? 1 : idx + 1,
+      })
+    })
+    return annotations
+  }
+
   const detectImportAnnotationsForFile = (fileName) => {
     const lang = inferLanguageFromFileName(fileName, langHint)
     if (lang === 'python') {
       return buildPythonImportAnnotations(fileName)
+    }
+    if (lang === 'javascript') {
+      return buildJsImportAnnotations(fileName)
+    }
+    if (lang === 'cpp') {
+      return buildCppImportAnnotations(fileName)
+    }
+    if (lang === 'go') {
+      return buildGoImportAnnotations(fileName)
+    }
+    if (lang === 'java') {
+      return buildJavaImportAnnotations(fileName)
     }
     return []
   }
