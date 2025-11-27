@@ -808,8 +808,15 @@ async def _handle_python_debug(ws: WebSocket, sess: dict):
                 except Exception as e:
                     await ws.send_json({"type":"err","data": f"debug command failed: {e}"})
             elif msg.get("type") == "stdin":
-                # Python debug mode does not forward stdin for now.
-                continue
+                data = msg.get("data", "")
+                try:
+                    await send_cmd({"type": "stdin", "data": data})
+                    try:
+                        await ws.send_json({"type": "awaiting_input", "value": False})
+                    except Exception:
+                        pass
+                except Exception as e:
+                    await ws.send_json({"type":"err","data": f"stdin failed: {e}"})
             else:
                 await ws.send_json({"type":"err","data": f"unknown msg: {msg}"})
     except WebSocketDisconnect:
@@ -1655,6 +1662,11 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                 elif event == "breakpoints_set":
                     try:
                         await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"synced": True}})
+                    except Exception:
+                        pass
+                elif event == "await_input":
+                    try:
+                        await ws.send_json({"type": "awaiting_input", "value": True, "prompt": body.get("prompt", "")})
                     except Exception:
                         pass
                 else:

@@ -8,6 +8,7 @@ import queue
 import os
 
 COMMAND_QUEUE = queue.Queue()
+INPUT_QUEUE = queue.Queue()
 
 
 def read_commands():
@@ -20,10 +21,16 @@ def read_commands():
         if not line:
             continue
         try:
-            COMMAND_QUEUE.put(json.loads(line))
+            cmd = json.loads(line)
         except Exception:
             # Ignore malformed input
             continue
+        # stdin payloads are routed to INPUT_QUEUE so that the input()
+        # override can consume them without racing debug commands.
+        if cmd.get("type") == "stdin":
+            INPUT_QUEUE.put(cmd.get("data", ""))
+            continue
+        COMMAND_QUEUE.put(cmd)
 
 
 class OmniDebugger(bdb.Bdb):
@@ -31,7 +38,11 @@ class OmniDebugger(bdb.Bdb):
 
     def __init__(self, target_script: str):
         super().__init__()
+        target_abspath = os.path.abspath(target_script)
         self.target_script = target_script
+        self.target_base = os.path.basename(target_abspath)
+        self.workdir = os.path.dirname(target_abspath)
+        self.input_queue = INPUT_QUEUE
 
     # ------------ Bdb callbacks ------------
 
@@ -59,8 +70,22 @@ class OmniDebugger(bdb.Bdb):
     # ------------ helpers ------------
 
     def _is_user_frame(self, frame) -> bool:
-        """Only stop in the user's script, not inside bdb internals."""
-        return frame.f_code.co_filename.endswith(self.target_script)
+        """
+        Treat any file inside the working directory (e.g., /work) as user code.
+        This lets us step into helper modules, not just the entry script.
+        """
+        fname = frame.f_code.co_filename
+        if not fname:
+            return False
+
+        abspath = os.path.abspath(fname)
+        try:
+            if self.workdir and os.path.commonpath([abspath, self.workdir]) == self.workdir:
+                return True
+        except Exception:
+            pass
+
+        return os.path.basename(abspath) == self.target_base
 
     def _emit_event(self, event, body):
         packet = {"event": event, "body": body}
@@ -88,10 +113,35 @@ class OmniDebugger(bdb.Bdb):
         }
 
     def _normalize_path(self, path: str) -> str:
-        # accept "/work/sample_program.py" and "sample_program.py"
-        if path.startswith("/work/"):
-            return path[len("/work/") :]
+        """
+        Normalize a user-provided path so that both "/work/foo.py" and "foo.py"
+        refer to the same file. Falls back to the original path on failure.
+        """
+        if not path:
+            return path
+        try:
+            abspath = os.path.abspath(path)
+            if self.workdir and os.path.commonpath([abspath, self.workdir]) == self.workdir:
+                rel = os.path.relpath(abspath, self.workdir)
+                return rel
+        except Exception:
+            pass
         return path
+
+    def _wait_for_input(self, prompt: str = "") -> str:
+        """
+        Wait for a line of user input provided by the host via stdin messages.
+        Emits an await_input event so the frontend can enable the input box.
+        """
+        try:
+            self._emit_event("await_input", {"prompt": prompt})
+        except Exception:
+            pass
+        try:
+            line = self.input_queue.get()
+        except Exception:
+            line = ""
+        return line
 
     def _wait_for_command(self, frame):
         """Block here until the user issues a debugger command."""
@@ -141,6 +191,8 @@ class OmniDebugger(bdb.Bdb):
             if t == "stop":
                 sys.exit(0)
 
+            # Any other command types are ignored to keep the loop simple.
+
 
 def main():
     if len(sys.argv) < 2:
@@ -153,6 +205,21 @@ def main():
     threading.Thread(target=read_commands, daemon=True).start()
 
     dbg = OmniDebugger(target_script)
+
+    # Override input() so the debug host can feed stdin from the browser.
+    import builtins
+
+    _orig_input = builtins.input
+
+    def _oc_input(prompt=""):
+        try:
+            sys.stdout.write(str(prompt))
+            sys.stdout.flush()
+        except Exception:
+            pass
+        return dbg._wait_for_input(prompt)
+
+    builtins.input = _oc_input
 
     try:
         # Read and compile the user's script with the correct filename
@@ -179,7 +246,7 @@ def main():
                     filename = bp.get("file")
                     line = bp.get("line")
                     if filename and line:
-                        dbg.set_break(filename, int(line))
+                        dbg.set_break(dbg._normalize_path(filename), int(line))
                         bps_applied = True
             except Exception:
                 bps_applied = False
