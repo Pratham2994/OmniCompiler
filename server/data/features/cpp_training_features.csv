@@ -1,0 +1,123 @@
+file,path,line_no,line,reasons,is_good_breakpoint,has_for,has_while,has_if,has_else,has_indexing,has_comparison,reason_count,line_length,num_ops,num_parens,num_tokens
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,2,"int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};",indexing,0,0,0,0,0,1,0,1,58,3,14,11
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,4,int numIslands(vector<vector<char>>& grid) {,comparison,0,0,0,0,0,0,1,1,44,5,3,4
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,5,"int ROWS = grid.size(), COLS = grid[0].size();",indexing,0,0,0,0,0,1,0,1,46,2,6,7
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,8,for (int r = 0; r < ROWS; r++) {,for_loop,1,1,0,0,0,0,1,1,32,4,3,10
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,9,for (int c = 0; c < COLS; c++) {,for_loop,1,1,0,0,0,0,1,1,32,4,3,10
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,10,if (grid[r][c] == '1') {,if;indexing;comparison,1,0,0,1,0,1,1,3,24,2,7,5
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,20,"void dfs(vector<vector<char>>& grid, int r, int c) {",comparison,0,0,0,0,0,0,1,1,52,5,3,8
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,21,if (r < 0 || c < 0 || r >= grid.size() ||,if;comparison,1,0,0,1,0,0,1,2,41,10,3,13
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,22,c >= grid[0].size() || grid[r][c] == '0') {,indexing;comparison,1,0,0,0,0,1,1,2,43,6,10,8
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,26,grid[r][c] = '0';,indexing,0,0,0,0,0,1,0,1,17,1,4,3
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,27,for (int i = 0; i < 4; i++) {,for_loop,1,1,0,0,0,0,1,1,29,4,3,10
+number_of_islands.cpp,data/raw/cpp/number_of_islands.cpp,28,"dfs(grid, r + directions[i][0], c + directions[i][1]);",indexing,0,0,0,0,0,1,0,1,54,2,10,7
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,4,vector<int> tree;,comparison,0,0,0,0,0,0,1,1,17,2,0,2
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,6,"SegmentTree(int N, vector<int>& A) {",comparison,0,0,0,0,0,0,1,1,36,3,3,5
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,7,this->n = N;,comparison,0,0,0,0,0,0,1,1,12,3,0,3
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,8,while (__builtin_popcount(n) != 1) {,while_loop;comparison,1,0,1,0,0,0,1,2,36,2,5,5
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,14,"void build(int N, vector<int>& A) {",comparison,0,0,0,0,0,0,1,1,35,3,3,6
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,16,for (int i = 0; i < N; i++) {,for_loop,1,1,0,0,0,0,1,1,29,4,3,10
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,17,tree[n + i] = A[i];,indexing,0,0,0,0,0,1,0,1,19,2,4,5
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,19,for (int i = n - 1; i > 0; --i) {,for_loop;comparison,1,1,0,0,0,0,1,2,33,5,3,12
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,20,"tree[i] = max(tree[i << 1], tree[i << 1 | 1]);",indexing,0,0,0,0,0,1,1,1,46,6,8,10
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,26,"for (l += n, r += n + 1; l < r; l >>= 1, r >>= 1) {",for_loop;comparison,1,1,0,0,0,0,1,2,51,12,3,19
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,27,"if (l & 1) res = max(res, tree[l++]);",if;indexing,1,0,0,1,0,1,0,2,37,4,6,8
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,28,"if (r & 1) res = max(res, tree[--r]);",if;indexing,1,0,0,1,0,1,0,2,37,4,6,8
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,36,"vector<int> maxSlidingWindow(vector<int>& nums, int k) {",comparison,0,0,0,0,0,0,1,1,56,5,3,6
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,39,vector<int> output;,comparison,0,0,0,0,0,0,1,1,19,2,0,2
+sliding_window_maximum.cpp,data/raw/cpp/sliding_window_maximum.cpp,40,for (int i = 0; i <= n - k; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,34,6,3,12
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,6,vector<Node*> neighbors;,comparison,0,0,0,0,0,0,1,1,24,3,0,2
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,9,neighbors = vector<Node*>();,comparison,0,0,0,0,0,0,1,1,28,4,2,3
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,13,neighbors = vector<Node*>();,comparison,0,0,0,0,0,0,1,1,28,4,2,3
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,15,"Node(int _val, vector<Node*> _neighbors) {",comparison,0,0,0,0,0,0,1,1,42,3,3,5
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,25,"map<Node*, Node*> oldToNew;",comparison,0,0,0,0,0,0,1,1,27,4,0,3
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,29,"Node* dfs(Node* node, map<Node*, Node*>& oldToNew) {",comparison,0,0,0,0,0,0,1,1,52,7,3,7
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,30,if (node == nullptr) {,if;comparison,1,0,0,1,0,0,1,2,22,2,3,5
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,34,if (oldToNew.count(node)) {,if,1,0,0,1,0,0,0,1,27,0,5,3
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,35,return oldToNew[node];,indexing,0,0,0,0,0,1,0,1,22,0,2,2
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,38,Node* copy = new Node(node->val);,comparison,0,0,0,0,0,0,1,1,33,4,2,5
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,39,oldToNew[node] = copy;,indexing,0,0,0,0,0,1,0,1,22,1,2,3
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,41,for (Node* nei : node->neighbors) {,for_loop;comparison,1,1,0,0,0,0,1,2,35,3,3,6
+clone_graph.cpp,data/raw/cpp/clone_graph.cpp,42,"copy->neighbors.push_back(dfs(nei, oldToNew));",comparison,0,0,0,0,0,0,1,1,46,2,4,2
+two_sum.cpp,data/raw/cpp/two_sum.cpp,3,"vector<int> twoSum(vector<int>& nums, int target) {",comparison,0,0,0,0,0,0,1,1,51,5,3,6
+two_sum.cpp,data/raw/cpp/two_sum.cpp,4,for (int i = 0; i < nums.size(); i++) {,for_loop,1,1,0,0,0,0,1,1,39,4,5,10
+two_sum.cpp,data/raw/cpp/two_sum.cpp,5,for (int j = i + 1; j < nums.size(); j++) {,for_loop,1,1,0,0,0,0,1,1,43,5,5,12
+two_sum.cpp,data/raw/cpp/two_sum.cpp,6,if (nums[i] + nums[j] == target) {,if;indexing;comparison,1,0,0,1,0,1,1,3,34,3,7,7
+three_sum.cpp,data/raw/cpp/three_sum.cpp,3,vector<vector<int>> threeSum(vector<int>& nums) {,comparison,0,0,0,0,0,0,1,1,49,7,3,4
+three_sum.cpp,data/raw/cpp/three_sum.cpp,4,vector<vector<int>> res;,comparison,0,0,0,0,0,0,1,1,24,4,0,2
+three_sum.cpp,data/raw/cpp/three_sum.cpp,7,for (int i = 0; i < nums.size(); i++) {,for_loop,1,1,0,0,0,0,1,1,39,4,5,10
+three_sum.cpp,data/raw/cpp/three_sum.cpp,8,if (i > 0 && nums[i] == nums[i-1]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,36,6,7,9
+three_sum.cpp,data/raw/cpp/three_sum.cpp,15,while (j < k) {,while_loop,1,0,1,0,0,0,1,1,15,1,3,5
+three_sum.cpp,data/raw/cpp/three_sum.cpp,16,int total = nums[i] + nums[j] + nums[k];,indexing,0,0,0,0,0,1,0,1,40,3,6,8
+three_sum.cpp,data/raw/cpp/three_sum.cpp,18,if (total > 0) {,if;comparison,1,0,0,1,0,0,1,2,16,1,3,5
+three_sum.cpp,data/raw/cpp/three_sum.cpp,23,"res.push_back({nums[i], nums[j], nums[k]});",indexing,0,0,0,0,0,1,0,1,43,0,10,3
+three_sum.cpp,data/raw/cpp/three_sum.cpp,26,while (nums[j] == nums[j-1] && j < k) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,39,6,7,9
+longest_substring_without_repeat.cpp,data/raw/cpp/longest_substring_without_repeat.cpp,6,unordered_set<char> charSet;,comparison,0,0,0,0,0,0,1,1,28,2,0,2
+longest_substring_without_repeat.cpp,data/raw/cpp/longest_substring_without_repeat.cpp,8,for (int right = 0; right < s.length(); right++) {,for_loop,1,1,0,0,0,0,1,1,50,4,5,10
+longest_substring_without_repeat.cpp,data/raw/cpp/longest_substring_without_repeat.cpp,9,while (charSet.find(s[right]) != charSet.end()) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,49,2,9,5
+longest_substring_without_repeat.cpp,data/raw/cpp/longest_substring_without_repeat.cpp,10,charSet.erase(s[left]);,indexing,0,0,0,0,0,1,0,1,23,0,4,1
+longest_substring_without_repeat.cpp,data/raw/cpp/longest_substring_without_repeat.cpp,14,charSet.insert(s[right]);,indexing,0,0,0,0,0,1,0,1,25,0,4,1
+coin_change.cpp,data/raw/cpp/coin_change.cpp,3,"unordered_map<int, int> memo;",comparison,0,0,0,0,0,0,1,1,29,2,0,3
+coin_change.cpp,data/raw/cpp/coin_change.cpp,4,"int dfs(int amount, vector<int>& coins) {",comparison,0,0,0,0,0,0,1,1,41,3,3,6
+coin_change.cpp,data/raw/cpp/coin_change.cpp,5,if (amount == 0) return 0;,if;comparison,1,0,0,1,0,0,1,2,26,2,2,6
+coin_change.cpp,data/raw/cpp/coin_change.cpp,6,if (memo.find(amount) != memo.end()),if;comparison,1,0,0,1,0,0,1,2,36,2,6,4
+coin_change.cpp,data/raw/cpp/coin_change.cpp,7,return memo[amount];,indexing,0,0,0,0,0,1,0,1,20,0,2,2
+coin_change.cpp,data/raw/cpp/coin_change.cpp,10,for (int coin : coins) {,for_loop,1,1,0,0,0,0,0,1,24,0,3,6
+coin_change.cpp,data/raw/cpp/coin_change.cpp,11,if (amount - coin >= 0) {,if;comparison,1,0,0,1,0,0,1,2,25,3,3,7
+coin_change.cpp,data/raw/cpp/coin_change.cpp,13,if (result != INT_MAX) {,if;comparison,1,0,0,1,0,0,1,2,24,2,3,5
+coin_change.cpp,data/raw/cpp/coin_change.cpp,19,memo[amount] = res;,indexing,0,0,0,0,0,1,0,1,19,1,2,3
+coin_change.cpp,data/raw/cpp/coin_change.cpp,23,"int coinChange(vector<int>& coins, int amount) {",comparison,0,0,0,0,0,0,1,1,48,3,3,6
+coin_change.cpp,data/raw/cpp/coin_change.cpp,25,return minCoins == INT_MAX ? -1 : minCoins;,comparison,0,0,0,0,0,0,1,1,43,3,0,8
+house_robber.cpp,data/raw/cpp/house_robber.cpp,3,int rob(vector<int>& nums) {,comparison,0,0,0,0,0,0,1,1,28,3,3,4
+house_robber.cpp,data/raw/cpp/house_robber.cpp,4,if (nums.empty()) return 0;,if,1,0,0,1,0,0,0,1,27,0,4,4
+house_robber.cpp,data/raw/cpp/house_robber.cpp,5,if (nums.size() == 1) return nums[0];,if;indexing;comparison,1,0,0,1,0,1,1,3,37,2,6,6
+house_robber.cpp,data/raw/cpp/house_robber.cpp,7,vector<int> dp(nums.size());,comparison,0,0,0,0,0,0,1,1,28,2,4,2
+house_robber.cpp,data/raw/cpp/house_robber.cpp,8,dp[0] = nums[0];,indexing,0,0,0,0,0,1,0,1,16,1,4,3
+house_robber.cpp,data/raw/cpp/house_robber.cpp,9,"dp[1] = max(nums[0], nums[1]);",indexing,0,0,0,0,0,1,0,1,30,1,8,4
+house_robber.cpp,data/raw/cpp/house_robber.cpp,11,for (int i = 2; i < nums.size(); i++) {,for_loop,1,1,0,0,0,0,1,1,39,4,5,10
+house_robber.cpp,data/raw/cpp/house_robber.cpp,12,"dp[i] = max(dp[i - 1], nums[i] + dp[i - 2]);",indexing,0,0,0,0,0,1,0,1,44,4,10,10
+house_robber.cpp,data/raw/cpp/house_robber.cpp,15,return dp[nums.size() - 1];,indexing,0,0,0,0,0,1,0,1,27,1,4,4
+max_depth.cpp,data/raw/cpp/max_depth.cpp,16,if (root == nullptr) {,if;comparison,1,0,0,1,0,0,1,2,22,2,3,5
+max_depth.cpp,data/raw/cpp/max_depth.cpp,20,"return 1 + max(maxDepth(root->left), maxDepth(root->right));",comparison,0,0,0,0,0,0,1,1,60,5,6,5
+lowest_common_ancestor.cpp,data/raw/cpp/lowest_common_ancestor.cpp,16,if (!root || !p || !q) {,if,1,0,0,1,0,0,0,1,24,7,3,7
+lowest_common_ancestor.cpp,data/raw/cpp/lowest_common_ancestor.cpp,19,"if (max(p->val, q->val) < root->val) {",if;comparison,1,0,0,1,0,0,1,2,38,7,5,6
+lowest_common_ancestor.cpp,data/raw/cpp/lowest_common_ancestor.cpp,20,"return lowestCommonAncestor(root->left, p, q);",comparison,0,0,0,0,0,0,1,1,46,2,2,4
+lowest_common_ancestor.cpp,data/raw/cpp/lowest_common_ancestor.cpp,21,"} else if (min(p->val, q->val) > root->val) {",comparison,0,0,0,1,0,0,1,1,45,7,6,8
+lowest_common_ancestor.cpp,data/raw/cpp/lowest_common_ancestor.cpp,22,"return lowestCommonAncestor(root->right, p, q);",comparison,0,0,0,0,0,0,1,1,47,2,2,4
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,3,"int search(vector<int>& nums, int target) {",comparison,0,0,0,0,0,0,1,1,43,3,3,6
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,6,while (low <= high) {,while_loop;comparison,1,0,1,0,0,0,1,2,21,2,3,5
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,9,if (nums[mid] == target) return mid;,if;indexing;comparison,1,0,0,1,0,1,1,3,36,2,4,6
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,11,if (nums[low] <= nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,29,2,7,5
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,12,if (nums[low] <= target && target <= nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,49,6,7,9
+search_rotated_array.cpp,data/raw/cpp/search_rotated_array.cpp,18,if (nums[mid] <= target && target <= nums[high]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,50,6,7,9
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,3,"unordered_map<int, vector<int>> preMap;",comparison,0,0,0,0,0,0,1,1,39,4,0,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,5,unordered_set<int> visiting;,comparison,0,0,0,0,0,0,1,1,28,2,0,2
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,8,"bool canFinish(int numCourses, vector<vector<int>>& prerequisites) {",comparison,0,0,0,0,0,0,1,1,68,5,3,6
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,9,for (int i = 0; i < numCourses; i++) {,for_loop,1,1,0,0,0,0,1,1,38,4,3,10
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,10,preMap[i] = {};,indexing,0,0,0,0,0,1,0,1,15,1,4,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,12,for (const auto& prereq : prerequisites) {,for_loop,1,1,0,0,0,0,0,1,42,1,3,7
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,13,preMap[prereq[0]].push_back(prereq[1]);,indexing,0,0,0,0,0,1,0,1,39,0,8,1
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,16,for (int c = 0; c < numCourses; c++) {,for_loop,1,1,0,0,0,0,1,1,38,4,3,10
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,17,if (!dfs(c)) {,if,1,0,0,1,0,0,0,1,14,1,5,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,25,if (visiting.count(crs)) {,if,1,0,0,1,0,0,0,1,26,0,5,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,29,if (preMap[crs].empty()) {,if;indexing,1,0,0,1,0,1,0,2,26,0,7,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,34,for (int pre : preMap[crs]) {,for_loop;indexing,1,1,0,0,0,1,0,2,29,0,5,6
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,35,if (!dfs(pre)) {,if,1,0,0,1,0,0,0,1,16,1,5,3
+course_schedule.cpp,data/raw/cpp/course_schedule.cpp,40,preMap[crs].clear();,indexing,0,0,0,0,0,1,0,1,20,0,4,1
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,15,vector<vector<int>> res;,comparison,0,0,0,0,0,0,1,1,24,4,0,2
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,17,vector<vector<int>> levelOrder(TreeNode* root) {,comparison,0,0,0,0,0,0,1,1,48,5,3,4
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,23,if (!node) return;,if,1,0,0,1,0,0,0,1,18,1,2,3
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,25,if (res.size() == depth) {,if;comparison,1,0,0,1,0,0,1,2,26,2,5,5
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,26,res.push_back(vector<int>());,comparison,0,0,0,0,0,0,1,1,29,2,4,1
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,29,res[depth].push_back(node->val);,indexing;comparison,1,0,0,0,0,1,1,2,32,2,4,1
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,30,"dfs(node->left, depth + 1);",comparison,0,0,0,0,0,0,1,1,27,3,2,4
+binary_tree_traversal.cpp,data/raw/cpp/binary_tree_traversal.cpp,31,"dfs(node->right, depth + 1);",comparison,0,0,0,0,0,0,1,1,28,3,2,4
+longest_palindromic_substring.cpp,data/raw/cpp/longest_palindromic_substring.cpp,7,for (int i = 0; i < s.size(); i++) {,for_loop,1,1,0,0,0,0,1,1,36,4,5,10
+longest_palindromic_substring.cpp,data/raw/cpp/longest_palindromic_substring.cpp,8,for (int j = i; j < s.size(); j++) {,for_loop,1,1,0,0,0,0,1,1,36,4,5,10
+longest_palindromic_substring.cpp,data/raw/cpp/longest_palindromic_substring.cpp,10,while (l < r && s[l] == s[r]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,31,5,7,9
+longest_palindromic_substring.cpp,data/raw/cpp/longest_palindromic_substring.cpp,15,if (l >= r && resLen < (j - i + 1)) {,if;comparison,1,0,0,1,0,0,1,2,37,7,5,13
+binary_search_template_2.cpp,data/raw/cpp/binary_search_template_2.cpp,3,"int binary_search(int l, int r, vector<int>& nums, int target){",comparison,0,0,0,0,0,0,1,1,63,3,3,9
+binary_search_template_2.cpp,data/raw/cpp/binary_search_template_2.cpp,4,if (l > r) return -1;,if;comparison,1,0,0,1,0,0,1,2,21,2,2,6
+binary_search_template_2.cpp,data/raw/cpp/binary_search_template_2.cpp,7,if (nums[m] == target) return m;,if;indexing;comparison,1,0,0,1,0,1,1,3,32,2,4,6
+binary_search_template_2.cpp,data/raw/cpp/binary_search_template_2.cpp,8,return ((nums[m] < target) ?,indexing,0,0,0,0,0,1,1,1,28,1,5,5
+binary_search_template_2.cpp,data/raw/cpp/binary_search_template_2.cpp,13,"int search(vector<int>& nums, int target) {",comparison,0,0,0,0,0,0,1,1,43,3,3,6

@@ -9,8 +9,8 @@ ENV/
 ./venv
 ../venv
 
-
-
+*.pkl
+*.joblib
 
 # Local environment
 .env

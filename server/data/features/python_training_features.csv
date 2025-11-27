@@ -1,0 +1,114 @@
+file,path,line_no,line,reasons,is_good_breakpoint,has_for,has_while,has_if,has_else,has_indexing,has_comparison,reason_count,line_length,num_ops,num_parens,num_tokens
+search_rotated_array.py,data/raw/python/search_rotated_array.py,1,"def search(nums: list[int], target: int) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,48,2,4,7
+search_rotated_array.py,data/raw/python/search_rotated_array.py,5,while left <= right:,while_loop;comparison,1,0,1,0,0,0,1,2,20,2,0,4
+search_rotated_array.py,data/raw/python/search_rotated_array.py,7,if nums[mid] == target:,if;indexing;comparison,1,0,0,1,0,1,1,3,23,2,2,4
+search_rotated_array.py,data/raw/python/search_rotated_array.py,10,if nums[left] <= nums[mid]:,if;indexing;comparison,1,0,0,1,0,1,1,3,27,2,4,4
+search_rotated_array.py,data/raw/python/search_rotated_array.py,11,if nums[left] <= target < nums[mid]:,if;indexing;comparison,1,0,0,1,0,1,1,3,36,3,4,6
+search_rotated_array.py,data/raw/python/search_rotated_array.py,13,else:,else,0,0,0,0,1,0,0,1,5,0,0,1
+search_rotated_array.py,data/raw/python/search_rotated_array.py,15,else:,else,0,0,0,0,1,0,0,1,5,0,0,1
+search_rotated_array.py,data/raw/python/search_rotated_array.py,17,if nums[mid] < target <= nums[right]:,if;indexing;comparison,1,0,0,1,0,1,1,3,37,3,4,6
+search_rotated_array.py,data/raw/python/search_rotated_array.py,19,else:,else,0,0,0,0,1,0,0,1,5,0,0,1
+max_depth.py,data/raw/python/max_depth.py,9,"def maxDepth(self, root: Optional[TreeNode]) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,52,2,4,6
+max_depth.py,data/raw/python/max_depth.py,10,if not root:,if,1,0,0,1,0,0,0,1,12,0,0,3
+house_robber.py,data/raw/python/house_robber.py,2,"def rob(self, nums: list[int]) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,38,2,4,6
+house_robber.py,data/raw/python/house_robber.py,3,"# DP (1D optimized): keep two values for prev two states (prev=dp[i-2], curr=dp[i-1])",indexing,0,1,0,0,0,1,0,1,85,4,8,13
+house_robber.py,data/raw/python/house_robber.py,4,# For each house choose max(skip current -> curr) or rob current -> prev + n,comparison,0,0,0,0,0,0,1,1,76,5,2,16
+house_robber.py,data/raw/python/house_robber.py,7,for n in nums:,for_loop,1,1,0,0,0,0,0,1,14,0,0,4
+clone_graph.py,data/raw/python/clone_graph.py,10,"def cloneGraph(self, node: Optional['Node']) -> Optional['Node']:",indexing;comparison,1,0,0,0,0,1,1,2,65,2,6,6
+clone_graph.py,data/raw/python/clone_graph.py,14,if node in oldToNew:,if,1,0,0,1,0,0,0,1,20,0,0,4
+clone_graph.py,data/raw/python/clone_graph.py,15,return oldToNew[node],indexing,0,0,0,0,0,1,0,1,21,0,2,2
+clone_graph.py,data/raw/python/clone_graph.py,18,oldToNew[node] = copy,indexing,0,0,0,0,0,1,0,1,21,1,2,3
+clone_graph.py,data/raw/python/clone_graph.py,19,for nei in node.neighbors:,for_loop,1,1,0,0,0,0,0,1,26,0,0,4
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,1,"def binary_search(nums: list[int], target: int) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,55,2,4,7
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,2,"# Template 2 (left < right): operate on [left, right) with right = len(nums)",comparison,0,0,0,0,0,0,1,1,76,2,6,14
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,5,while left < right:,while_loop;comparison,1,0,1,0,0,0,1,2,19,1,0,4
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,7,if nums[mid] < target:,if;indexing;comparison,1,0,0,1,0,1,1,3,22,1,2,4
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,9,else:,else,0,0,0,0,1,0,0,1,5,0,0,1
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,11,# left is the first index where nums[left] >= target (if in range),indexing;comparison,1,0,0,1,0,1,1,2,66,2,4,13
+binary_search_template_2.py,data/raw/python/binary_search_template_2.py,12,if left < len(nums) and nums[left] == target:,if;indexing;comparison,1,0,0,1,0,1,1,3,45,3,4,8
+number_of_islands.py,data/raw/python/number_of_islands.py,2,"def numIslands(self, grid: List[List[str]]) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,51,2,6,6
+number_of_islands.py,data/raw/python/number_of_islands.py,4,"ROWS, COLS = len(grid), len(grid[0])",indexing,0,0,0,0,0,1,0,1,36,1,6,5
+number_of_islands.py,data/raw/python/number_of_islands.py,9,"grid[r][c] = ""0""",indexing,0,0,0,0,0,1,0,1,16,1,4,3
+number_of_islands.py,data/raw/python/number_of_islands.py,12,while q:,while_loop,1,0,1,0,0,0,0,1,8,0,0,2
+number_of_islands.py,data/raw/python/number_of_islands.py,14,"for dr, dc in directions:",for_loop,1,1,0,0,0,0,0,1,25,0,0,5
+number_of_islands.py,data/raw/python/number_of_islands.py,16,if (nr < 0 or nc < 0 or nr >= ROWS or,if;comparison,1,0,0,1,0,0,1,2,37,4,1,13
+number_of_islands.py,data/raw/python/number_of_islands.py,17,"nc >= COLS or grid[nr][nc] == ""0""",indexing;comparison,1,0,0,0,0,1,1,2,33,4,4,7
+number_of_islands.py,data/raw/python/number_of_islands.py,21,"grid[nr][nc] = ""0""",indexing,0,0,0,0,0,1,0,1,18,1,4,3
+number_of_islands.py,data/raw/python/number_of_islands.py,23,for r in range(ROWS):,for_loop,1,1,0,0,0,0,0,1,21,0,2,4
+number_of_islands.py,data/raw/python/number_of_islands.py,24,for c in range(COLS):,for_loop,1,1,0,0,0,0,0,1,21,0,2,4
+number_of_islands.py,data/raw/python/number_of_islands.py,25,"if grid[r][c] == ""1"":",if;indexing;comparison,1,0,0,1,0,1,1,3,21,2,4,4
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,9,def inorder(root: Optional[TreeNode]) -> List[int]:,indexing;comparison,1,0,0,0,0,1,1,2,51,2,6,5
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,11,res: List[int] = [],indexing,0,0,0,0,0,1,0,1,19,1,4,4
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,14,while cur or stack:,while_loop,1,0,1,0,0,0,0,1,19,0,0,4
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,15,while cur:,while_loop,1,0,1,0,0,0,0,1,10,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,23,def preorder(root: Optional[TreeNode]) -> List[int]:,indexing;comparison,1,0,0,0,0,1,1,2,52,2,6,5
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,25,if not root:,if,1,0,0,1,0,0,0,1,12,0,0,3
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,27,res: List[int] = [],indexing,0,0,0,0,0,1,0,1,19,1,4,4
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,29,while stack:,while_loop,1,0,1,0,0,0,0,1,12,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,32,if node.right:,if,1,0,0,1,0,0,0,1,14,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,34,if node.left:,if,1,0,0,1,0,0,0,1,13,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,38,def postorder(root: Optional[TreeNode]) -> List[int]:,indexing;comparison,1,0,0,0,0,1,1,2,53,2,6,5
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,40,if not root:,if,1,0,0,1,0,0,0,1,12,0,0,3
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,42,res: List[int] = [],indexing,0,0,0,0,0,1,0,1,19,1,4,4
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,44,while stack:,while_loop,1,0,1,0,0,0,0,1,12,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,47,if node.left:,if,1,0,0,1,0,0,0,1,13,0,0,2
+binary_tree_traversal.py,data/raw/python/binary_tree_traversal.py,49,if node.right:,if,1,0,0,1,0,0,0,1,14,0,0,2
+coin_change.py,data/raw/python/coin_change.py,3,"def coinChange(coins: List[int], amount: int) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,53,2,4,7
+coin_change.py,data/raw/python/coin_change.py,4,# 1D DP: dp[a] = min coins to make amount a; dp[0]=0; iterate coins for each amount,indexing,0,1,0,0,0,1,0,1,83,2,4,17
+coin_change.py,data/raw/python/coin_change.py,7,for c in coins:,for_loop,1,1,0,0,0,0,0,1,15,0,0,4
+coin_change.py,data/raw/python/coin_change.py,8,"for a in range(c, amount + 1):",for_loop,1,1,0,0,0,0,0,1,30,1,2,7
+coin_change.py,data/raw/python/coin_change.py,9,"dp[a] = min(dp[a], dp[a - c] + 1)",indexing,0,0,0,0,0,1,0,1,33,3,8,8
+coin_change.py,data/raw/python/coin_change.py,10,return dp[amount] if dp[amount] != INF else -1,indexing;comparison,1,0,0,1,0,1,1,2,46,3,4,8
+longest_substring_without_repeat.py,data/raw/python/longest_substring_without_repeat.py,2,"def lengthOfLongestSubstring(self, s: str) -> int:",comparison,0,0,0,0,0,0,1,1,50,2,2,6
+longest_substring_without_repeat.py,data/raw/python/longest_substring_without_repeat.py,8,"for i, ch in enumerate(s):",for_loop,1,1,0,0,0,0,0,1,26,0,2,5
+longest_substring_without_repeat.py,data/raw/python/longest_substring_without_repeat.py,9,if ch in last and last[ch] >= left:,if;indexing;comparison,1,0,0,1,0,1,1,3,35,2,2,8
+longest_substring_without_repeat.py,data/raw/python/longest_substring_without_repeat.py,10,left = last[ch] + 1,indexing,0,0,0,0,0,1,0,1,19,2,2,5
+longest_substring_without_repeat.py,data/raw/python/longest_substring_without_repeat.py,11,last[ch] = i,indexing,0,0,0,0,0,1,0,1,12,1,2,3
+three_sum.py,data/raw/python/three_sum.py,4,"def threeSum(self, nums: List[int]) -> List[List[int]]:",indexing;comparison,1,0,0,0,0,1,1,2,55,2,8,6
+three_sum.py,data/raw/python/three_sum.py,5,# Sort + two pointers to find pairs summing to -nums[i]; skip duplicates,indexing,0,0,0,0,0,1,0,1,72,2,2,13
+three_sum.py,data/raw/python/three_sum.py,7,res: List[List[int]] = [],indexing,0,0,0,0,0,1,0,1,25,1,6,4
+three_sum.py,data/raw/python/three_sum.py,9,for i in range(n - 2):,for_loop,1,1,0,0,0,0,0,1,22,1,2,6
+three_sum.py,data/raw/python/three_sum.py,10,if i > 0 and nums[i] == nums[i - 1]:,if;indexing;comparison,1,0,0,1,0,1,1,3,36,4,4,10
+three_sum.py,data/raw/python/three_sum.py,12,target = -nums[i],indexing,0,0,0,0,0,1,0,1,17,2,2,3
+three_sum.py,data/raw/python/three_sum.py,14,while l < r:,while_loop;comparison,1,0,1,0,0,0,1,2,12,1,0,4
+three_sum.py,data/raw/python/three_sum.py,15,s = nums[l] + nums[r],indexing,0,0,0,0,0,1,0,1,21,2,4,5
+three_sum.py,data/raw/python/three_sum.py,16,if s == target:,if;comparison,1,0,0,1,0,0,1,2,15,2,0,4
+three_sum.py,data/raw/python/three_sum.py,17,"res.append([nums[i], nums[l], nums[r]])",indexing,0,0,0,0,0,1,0,1,39,0,10,3
+three_sum.py,data/raw/python/three_sum.py,21,while l < r and nums[l] == nums[l - 1]:,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,39,4,4,10
+three_sum.py,data/raw/python/three_sum.py,23,while l < r and nums[r] == nums[r + 1]:,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,39,4,4,10
+three_sum.py,data/raw/python/three_sum.py,25,elif s < target:,elif;comparison,1,0,0,1,0,0,1,2,16,1,0,4
+three_sum.py,data/raw/python/three_sum.py,27,else:,else,0,0,0,0,1,0,0,1,5,0,0,1
+lowest_common_ancestor.py,data/raw/python/lowest_common_ancestor.py,10,"def lowestCommonAncestor(self, root: Optional[TreeNode], p: TreeNode, q: TreeNode) -> Optional[TreeNode]:",indexing;comparison,1,0,0,0,0,1,1,2,105,2,6,10
+lowest_common_ancestor.py,data/raw/python/lowest_common_ancestor.py,13,if not root or root == p or root == q:,if;comparison,1,0,0,1,0,0,1,2,38,4,0,11
+lowest_common_ancestor.py,data/raw/python/lowest_common_ancestor.py,17,if left and right:,if,1,0,0,1,0,0,0,1,18,0,0,4
+course_schedule.py,data/raw/python/course_schedule.py,4,"def canFinish(numCourses: int, prerequisites: List[List[int]]) -> bool:",indexing;comparison,1,0,0,0,0,1,1,2,71,2,6,7
+course_schedule.py,data/raw/python/course_schedule.py,8,"for dest, src in prerequisites:",for_loop,1,1,0,0,0,0,0,1,31,0,0,5
+course_schedule.py,data/raw/python/course_schedule.py,9,adj[src].append(dest),indexing,0,0,0,0,0,1,0,1,21,0,4,1
+course_schedule.py,data/raw/python/course_schedule.py,10,indeg[dest] += 1,indexing,0,0,0,0,0,1,0,1,16,2,2,3
+course_schedule.py,data/raw/python/course_schedule.py,12,q = deque([i for i in range(numCourses) if indeg[i] == 0]),indexing;comparison,1,1,0,1,0,1,1,2,58,3,8,11
+course_schedule.py,data/raw/python/course_schedule.py,14,while q:,while_loop,1,0,1,0,0,0,0,1,8,0,0,2
+course_schedule.py,data/raw/python/course_schedule.py,17,for nei in adj[node]:,for_loop;indexing,1,1,0,0,0,1,0,2,21,0,2,4
+course_schedule.py,data/raw/python/course_schedule.py,18,indeg[nei] -= 1,indexing,0,0,0,0,0,1,0,1,15,2,2,3
+course_schedule.py,data/raw/python/course_schedule.py,19,if indeg[nei] == 0:,if;indexing;comparison,1,0,0,1,0,1,1,3,19,2,2,4
+course_schedule.py,data/raw/python/course_schedule.py,21,return visited == numCourses,comparison,0,0,0,0,0,0,1,1,28,2,0,4
+two_sum.py,data/raw/python/two_sum.py,2,"def twoSum(self, nums: list[int], target: int) -> list[int]:",indexing;comparison,1,0,0,0,0,1,1,2,60,2,6,8
+two_sum.py,data/raw/python/two_sum.py,3,# Use hashmap to store value -> index and check complement during one pass,comparison,0,0,0,0,0,0,1,1,74,2,0,14
+two_sum.py,data/raw/python/two_sum.py,5,"for i, num in enumerate(nums):",for_loop,1,1,0,0,0,0,0,1,30,0,2,5
+two_sum.py,data/raw/python/two_sum.py,7,if comp in seen:,if,1,0,0,1,0,0,0,1,16,0,0,4
+two_sum.py,data/raw/python/two_sum.py,8,"return [seen[comp], i]",indexing,0,0,0,0,0,1,0,1,22,0,4,3
+two_sum.py,data/raw/python/two_sum.py,9,seen[num] = i,indexing,0,0,0,0,0,1,0,1,13,1,2,3
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,1,def longestPalindrome(s: str) -> str:,comparison,0,0,0,0,0,0,1,1,37,2,2,5
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,3,if not s:,if,1,0,0,1,0,0,0,1,9,0,0,3
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,6,"def expand(l: int, r: int) -> int:",comparison,0,0,0,0,0,0,1,1,34,2,2,7
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,7,while l >= 0 and r < len(s) and s[l] == s[r]:,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,45,5,6,12
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,11,for i in range(len(s)):,for_loop,1,1,0,0,0,0,0,1,23,0,4,4
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,15,if L > end - start + 1:,if;comparison,1,0,0,1,0,0,1,2,23,3,0,8
+longest_palindromic_substring.py,data/raw/python/longest_palindromic_substring.py,19,return s[start:end+1],indexing,0,0,0,0,0,1,0,1,21,1,2,2
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,5,"def maxSlidingWindow(self, nums: List[int], k: int) -> List[int]:",indexing;comparison,1,0,0,0,0,1,1,2,65,2,6,8
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,7,if not nums or k == 0:,if;comparison,1,0,0,1,0,0,1,2,22,2,0,7
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,10,res: List[int] = [],indexing,0,0,0,0,0,1,0,1,19,1,4,4
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,11,"for i, num in enumerate(nums):",for_loop,1,1,0,0,0,0,0,1,30,0,2,5
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,13,while dq and dq[0] <= i - k:,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,28,3,2,8
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,16,while dq and nums[dq[-1]] < num:,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,32,2,4,6
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,20,if i >= k - 1:,if;comparison,1,0,0,1,0,0,1,2,14,3,0,6
+sliding_window_maximum.py,data/raw/python/sliding_window_maximum.py,21,res.append(nums[dq[0]]),indexing,0,0,0,0,0,1,0,1,23,0,6,1
