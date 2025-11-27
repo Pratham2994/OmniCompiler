@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import uuid, re, time
+import uuid, re, time, asyncio, tempfile, textwrap, shutil, os
 
 router = APIRouter()
 
@@ -13,11 +13,17 @@ class FileSpec(BaseModel):
     name: str
     content: str
 
+class BreakpointSpec(BaseModel):
+    file: str
+    line: int
+
 class RunReq(BaseModel):
-    lang: str                      # e.g., "python" | "javascript"
-    entry: str                     # e.g., "main.py"
+    lang: str                                      # e.g., "python" | "javascript"
+    entry: str                                     # e.g., "main.py"
     args: Optional[List[str]] = Field(default_factory=list)
     files: List[FileSpec]
+    mode: Optional[str] = Field(default="run")     # "run" | "debug"
+    breakpoints: Optional[List[BreakpointSpec]] = Field(default_factory=list)
 
 class RunResp(BaseModel):
     session_id: str
@@ -26,11 +32,18 @@ class RunResp(BaseModel):
 # ---------- Validation helpers ----------
 SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")  # no slashes/paths, no spaces
 ALLOWED_LANGS = {"python", "javascript", "java", "cpp", "go"}  # explicitly supported; plaintext is not allowed
+ALLOWED_MODES = {"run", "debug"}
 
 def _is_safe_name(name: str) -> bool:
     return bool(SAFE_NAME.match(name))
 
 def _validate_request(req: RunReq) -> None:
+    # mode must be supported
+    mode = (req.mode or "run").strip().lower()
+    if mode not in ALLOWED_MODES:
+        allowed_modes = ", ".join(sorted(ALLOWED_MODES))
+        raise HTTPException(status_code=400, detail=f"unsupported mode: {req.mode!r}. Choose one of: {allowed_modes}")
+
     # 0) language must be allowed and not plaintext
     lang = (req.lang or "").strip().lower()
     if lang not in ALLOWED_LANGS:
@@ -61,25 +74,180 @@ def _validate_request(req: RunReq) -> None:
         if len(f.content.encode("utf-8", "ignore")) > MAX_BYTES_PER_FILE:
             raise HTTPException(status_code=400, detail=f"file too large: {f.name}")
 
+    # 4) validate breakpoints (if any)
+    for bp in req.breakpoints or []:
+        if not _is_safe_name(bp.file):
+            raise HTTPException(status_code=400, detail=f"invalid breakpoint file: {bp.file}")
+        if bp.line <= 0:
+            raise HTTPException(status_code=400, detail=f"invalid breakpoint line: {bp.line}")
+
 def _build_ws_url(request: Request, sid: str) -> str:
     # Derive host from the incoming HTTP request; swap scheme http->ws, https->wss
     scheme = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host") or request.url.netloc
     return f"{scheme}://{host}/ws/run/{sid}"
 
+USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no", "No")
+DOCKER_IMAGES = {
+    "cpp": "omni-runner:cpp",
+}
+
+def _should_use_docker() -> bool:
+    return USE_DOCKER and shutil.which("docker") is not None
+
+def _write_files(files: List[FileSpec], workdir: str) -> None:
+    for f in files:
+        path = os.path.join(workdir, f.name)
+        with open(path, "w", encoding="utf-8") as fp:
+            fp.write(textwrap.dedent(f.content))
+
+async def _run_cmd(cmd: list[str], workdir: str):
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=workdir,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await proc.communicate()
+    return proc.returncode, out.decode(errors="ignore"), err.decode(errors="ignore")
+
+async def _prepare_cpp_debug_session(files: List[FileSpec]):
+    """
+    For C++ debug mode:
+      - write files to a temp dir
+      - compile with debug symbols
+      - start gdb in MI mode
+    Returns (workdir, proc)
+    """
+    if not _should_use_docker():
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).",
+        )
+
+    workdir = tempfile.mkdtemp(prefix="oc-cppdbg-")
+    try:
+        _write_files(files, workdir)
+
+        cpp_files = [f.name for f in files if f.name.endswith(".cpp")]
+        if not cpp_files:
+            raise HTTPException(status_code=400, detail="no C++ source files provided (.cpp)")
+
+        mount = f"{os.path.abspath(workdir)}:/work:rw"
+        compile_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "--network",
+            "none",
+            "--cpus",
+            "1",
+            "--memory",
+            "512m",
+            "--pids-limit",
+            "256",
+            "-v",
+            mount,
+            "-w",
+            "/work",
+            DOCKER_IMAGES["cpp"],
+            "g++",
+            "-g",
+            "-O0",
+            *cpp_files,
+            "-o",
+            "main",
+        ]
+
+        rc, out, err = await _run_cmd(compile_cmd, workdir)
+        if rc != 0:
+            msg = err or out or "compilation failed"
+            raise HTTPException(status_code=400, detail=f"g++ failed: {msg}")
+
+        gdb_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "--network",
+            "none",
+            "--cpus",
+            "1",
+            "--memory",
+            "512m",
+            "--pids-limit",
+            "256",
+            "--cap-add=SYS_PTRACE",
+            "--security-opt",
+            "seccomp=unconfined",
+            "-v",
+            mount,
+            "-w",
+            "/work",
+            DOCKER_IMAGES["cpp"],
+            "gdb",
+            "--interpreter=mi",
+            "--quiet",
+            "./main",
+        ]
+
+        gdb_proc = await asyncio.create_subprocess_exec(
+            *gdb_cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        return workdir, gdb_proc
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
 # ---------- Route ----------
 @router.post("/run", response_model=RunResp)
-def create_run(request: Request, body: RunReq) -> RunResp:
+async def create_run(request: Request, body: RunReq) -> RunResp:
     _validate_request(body)
 
+    lang = (body.lang or "").strip().lower()
+    mode = (body.mode or "run").strip().lower() or "run"
+    breakpoints = [{"file": bp.file, "line": bp.line} for bp in (body.breakpoints or [])]
     sid = uuid.uuid4().hex
-    SESSIONS[sid] = {
-        "lang": body.lang,
+    session = {
+        "id": sid,
+        "lang": lang,
         "entry": body.entry,
         "args": body.args or [],
         "files": [{"name": f.name, "content": f.content} for f in body.files],
         "state": "new",
         "created_at": time.time(),
+        "mode": mode,
+        "breakpoints": breakpoints,
     }
 
+    # For C++ debug, compile ahead of the websocket connection and start gdb in MI mode.
+    if mode == "debug" and lang == "cpp":
+        try:
+            workdir, proc = await _prepare_cpp_debug_session(body.files)
+
+            # Ensure gdb actually started; if it exited immediately, surface the error now.
+            try:
+                rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                rc = None
+            if rc is not None:
+                out, err = await proc.communicate()
+                msg = (err or out or f"gdb exited with code {rc}").decode(errors="ignore")
+                raise HTTPException(status_code=500, detail=f"gdb failed to start: {msg}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            msg = str(e) or repr(e)
+            raise HTTPException(status_code=500, detail=msg)
+
+        session["workdir"] = workdir
+        session["proc"] = proc
+        session["state"] = "debug-ready"
+
+    SESSIONS[sid] = session
     return RunResp(session_id=sid, ws_url=_build_ws_url(request, sid))
