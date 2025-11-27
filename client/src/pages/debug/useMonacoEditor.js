@@ -7,6 +7,7 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
   const modelsRef = useRef(new Map())
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 })
   const [monacoReady, setMonacoReady] = useState(Boolean(window.monaco))
+  const [editorReady, setEditorReady] = useState(false)
 
   useEffect(() => {
     const handleReady = () => setMonacoReady(true)
@@ -55,6 +56,8 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
       scrollBeyondLastLine: false,
       smoothScrolling: true,
       renderLineHighlight: 'all',
+      glyphMargin: true,
+      lineDecorationsWidth: 16,
       cursorBlinking: 'smooth',
       tabSize: 4,
       insertSpaces: true,
@@ -77,10 +80,12 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
     }
 
     editorRef.current = editor
+    setEditorReady(true)
 
     return () => {
-      editor.dispose()
       editorRef.current = null
+      editor.dispose()
+      setEditorReady(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monacoReady])
@@ -133,5 +138,6 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
     modelsRef,
     cursorPos,
     monacoReady,
+    editorReady,
   }
 }

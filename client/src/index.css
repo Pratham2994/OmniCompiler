@@ -382,6 +382,22 @@ html, body, #root {
 /* 1) Ensure no width transition animations on the code/output panes (safety net) */
 #oc-workspace section[style] { transition: none !important; }
 
+
+/* Monaco breakpoint glyphs */
+.monaco-editor .oc-breakpoint-glyph {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.65);
+  box-shadow: 0 0 0 1px var(--oc-bg);
+  margin: 3px auto;
+}
+
+.monaco-editor .oc-breakpoint-line {
+  border-left: 3px solid var(--oc-danger);
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
 /* Monaco Find widget — minimal, sane alignment and spacing (cleaned up) */
 .monaco-editor .find-widget { transition: none !important; }
 .monaco-editor .find-widget .monaco-findInput { margin-right: 8px !important; }

@@ -15,7 +15,6 @@ export default function DebugPanel({
   clearBreakpoints,
   toggleOutputCollapsed,
   breakpoints,
-  addBreakpointAtCursor,
   removeBreakpoint,
   effectiveLanguage,
   languageLabel,
@@ -168,15 +167,13 @@ export default function DebugPanel({
             <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Breakpoints</div>
-                <div className="flex items-center gap-2">
-                  <button className="oc-btn" onClick={addBreakpointAtCursor} aria-label="Add breakpoint at cursor">
-                    <Icon name="plus" /> <span className="ml-1">Add</span>
-                  </button>
+                <div className="text-[11px] text-[var(--oc-muted)]">
+                  Click the gutter or press F9.
                 </div>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
                 {breakpoints.length === 0 ? (
-                  <div className="text-[var(--oc-muted)]">No breakpoints. Use F9 or the Add button to create one at the current cursor.</div>
+                  <div className="text-[var(--oc-muted)]">No breakpoints yet. Click in the gutter (left of the line numbers)</div>
                 ) : (
                   <ul className="space-y-1">
                     {breakpoints.map(bp => (

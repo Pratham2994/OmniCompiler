@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLanguage } from '../context/LanguageContext.jsx'
 import { Icon } from '../components/run/ui.jsx'
@@ -239,7 +239,11 @@ export default function Debug() {
     modelsRef,
     cursorPos,
     monacoReady,
+    editorReady,
   } = useMonacoEditor({ activeFile, activeFileId, effectiveLanguage, theme, setFiles, filesLength: files.length })
+
+  const breakpointDecorationsRef = useRef([])
+
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsTrapRef = useFocusTrap(settingsOpen)
@@ -325,16 +329,71 @@ export default function Debug() {
     try { localStorage.setItem(BP_LS_KEY, JSON.stringify(breakpoints)) } catch {}
   }, [breakpoints])
 
-  const addBreakpointAtCursor = () => {
-    if (!activeFileId || !activeFile) return
-    const line = Math.max(1, Number(cursorPos?.line || 1))
-    const id = `${activeFileId}:${line}`
+  const toggleBreakpointAtLine = useCallback((fileId, maybeLine) => {
+    if (!fileId) return
+    const line = Math.max(1, Number(maybeLine) || 1)
+    const id = `${fileId}:${line}`
     setBreakpoints(prev => {
-      if (prev.some(b => b.id === id)) return prev
-      const item = { id, fileId: activeFileId, fileName: activeFile.name, line, condition: '' }
+      if (prev.some(b => b.id === id)) {
+        return prev.filter(b => b.id !== id)
+      }
+      const file = files.find(f => f.id === fileId)
+      const item = { id, fileId, fileName: file?.name || 'main', line, condition: '' }
       return [...prev, item].slice(0, 128)
     })
-  }
+  }, [files])
+
+
+  useEffect(() => {
+    if (!editorReady) return
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const mouseTargetType = monaco.editor?.MouseTargetType
+    if (!mouseTargetType) return
+    const disposable = editor.onMouseDown((e) => {
+      const targetType = e.target?.type
+      if (
+        targetType === mouseTargetType.GUTTER_GLYPH_MARGIN ||
+        targetType === mouseTargetType.GUTTER_LINE_NUMBERS ||
+        targetType === mouseTargetType.GUTTER_LINE_DECORATIONS
+      ) {
+        const lineNumber =
+          e.target?.position?.lineNumber ??
+          e.target?.range?.startLineNumber ??
+          e.target?.detail?.viewPosition?.lineNumber
+        if (lineNumber) {
+          toggleBreakpointAtLine(activeFileId, lineNumber)
+        }
+      }
+    })
+    return () => disposable.dispose()
+  }, [editorReady, toggleBreakpointAtLine, activeFileId])
+
+  useEffect(() => {
+    if (!editorReady) return
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const activeDecorations = breakpoints
+      .filter(bp => bp.fileId === activeFileId)
+      .map(bp => ({
+        range: new monaco.Range(bp.line, 1, bp.line, 1),
+        options: {
+          isWholeLine: false,
+          glyphMarginClassName: 'oc-breakpoint-glyph',
+          linesDecorationsClassName: 'oc-breakpoint-line',
+        },
+      }))
+    breakpointDecorationsRef.current = editor.deltaDecorations(
+      breakpointDecorationsRef.current,
+      activeDecorations,
+    )
+  }, [breakpoints, activeFileId, editorReady])
+  const addBreakpointAtCursor = useCallback(() => {
+    if (!activeFileId || !activeFile) return
+    toggleBreakpointAtLine(activeFileId, cursorPos?.line || 1)
+  }, [activeFileId, activeFile, cursorPos?.line, toggleBreakpointAtLine])
   const removeBreakpoint = (bpId) => setBreakpoints(prev => prev.filter(b => b.id !== bpId))
   const clearBreakpoints = () => setBreakpoints([])
 
@@ -466,7 +525,7 @@ export default function Debug() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [cursorPos, activeFileId, activeFile, running, editorRef, stopDebugSession, runProgram])
+  }, [cursorPos, activeFileId, activeFile, running, editorRef, stopDebugSession, runProgram, addBreakpointAtCursor])
 
   const {
     executionTrace,
@@ -571,7 +630,6 @@ export default function Debug() {
                 clearBreakpoints={clearBreakpoints}
                 toggleOutputCollapsed={toggleOutputCollapsed}
                 breakpoints={breakpoints}
-                addBreakpointAtCursor={addBreakpointAtCursor}
                 removeBreakpoint={removeBreakpoint}
                 effectiveLanguage={effectiveLanguage}
                 languageLabel={languageLabel}
