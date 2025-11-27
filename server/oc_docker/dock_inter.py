@@ -3,7 +3,12 @@ import docker
 import tarfile
 import io
 import threading
+import subprocess
 import asyncio
+import tempfile
+import os
+import shutil
+from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 app = FastAPI()
@@ -21,6 +26,51 @@ def make_tar_bytes(folder_path: str, arcname: str) -> bytes:
         tar.add(folder_path, arcname=arcname)
     bio.seek(0)
     return bio.read()
+
+def start_python_debug_container(files, entry_filename):
+    """
+    Run the Python debugger container (bdb-based).
+    Returns: (proc, workdir).
+    """
+    workdir = tempfile.mkdtemp()
+
+    # 1) write user files to workdir
+    for name, content in files.items():
+        file_path = os.path.join(workdir, name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 2) copy oc_py_debugger.py into workdir
+    here = Path(__file__).resolve().parent
+    debugger_src = here / "oc_py_debugger.py"
+    debugger_dst = Path(workdir) / "oc_py_debugger.py"
+    shutil.copy2(debugger_src, debugger_dst)
+
+    # 3) run docker, working dir = /work, so we can just call "python oc_py_debugger.py ..."
+    cmd = [
+        "docker", "run", "--rm",
+        "-i",
+        "-v", f"{workdir}:/work",
+        "-w", "/work",
+        "omni-runner:python",
+        "python", "oc_py_debugger.py", entry_filename,
+    ]
+
+    print("[debug docker] running:", " ".join(cmd))
+
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    return proc, workdir
+
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

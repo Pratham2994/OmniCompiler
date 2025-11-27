@@ -29,6 +29,9 @@ RUN pip install --no-cache-dir \
 
 # Optional async libs
 RUN pip install --no-cache-dir aiohttp==3.* httpx==0.* anyio==4.*
+# after python is installed / venv is ready
+RUN pip install --no-cache-dir "debugpy>=1.8.1,<2.0"
+RUN python -m pip uninstall -y dataclasses || true
 
 WORKDIR /work
 USER runner
