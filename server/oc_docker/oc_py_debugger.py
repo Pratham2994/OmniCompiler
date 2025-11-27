@@ -5,6 +5,7 @@ import json
 import traceback
 import threading
 import queue
+import os
 
 COMMAND_QUEUE = queue.Queue()
 
@@ -110,6 +111,10 @@ class OmniDebugger(bdb.Bdb):
                 # step into
                 return self.set_step()
 
+            if t == "step_out":
+                # run until current frame returns
+                return self.set_return(frame)
+
             if t == "set_breakpoints":
                 self.clear_all_breaks()
                 for bp in cmd.get("breakpoints", []):
@@ -161,8 +166,36 @@ def main():
             "__file__": target_script,
         }
 
-        # IMPORTANT: stop on the first line
-        dbg.set_step()
+        # If initial breakpoints were provided (env var), set them and do not stop at line 1.
+        init_bps = os.environ.get("OC_INIT_BPS", "")
+        init_bps_path = os.environ.get("OC_INIT_BPS_PATH")
+        bps_applied = False
+
+        def _apply_breakpoints(bp_json: str):
+            nonlocal bps_applied
+            try:
+                bp_list = json.loads(bp_json)
+                for bp in bp_list or []:
+                    filename = bp.get("file")
+                    line = bp.get("line")
+                    if filename and line:
+                        dbg.set_break(filename, int(line))
+                        bps_applied = True
+            except Exception:
+                bps_applied = False
+
+        if init_bps_path and os.path.exists(init_bps_path):
+            try:
+                with open(init_bps_path, "r", encoding="utf-8") as f:
+                    _apply_breakpoints(f.read())
+            except Exception:
+                bps_applied = False
+        elif init_bps:
+            _apply_breakpoints(init_bps)
+
+        if not bps_applied:
+            # Default: stop on the first line so the client can set breakpoints interactively
+            dbg.set_step()
 
         # Run the compiled code object under the debugger
         dbg.run(code, globs, {})

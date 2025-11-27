@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import uuid, re, time, asyncio, tempfile, textwrap, shutil, os
+import uuid, re, time, asyncio, tempfile, textwrap, shutil, os, json
 
 router = APIRouter()
 
@@ -90,6 +90,7 @@ def _build_ws_url(request: Request, sid: str) -> str:
 USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no", "No")
 DOCKER_IMAGES = {
     "cpp": "omni-runner:cpp",
+    "python": "omni-runner:python",
 }
 
 def _should_use_docker() -> bool:
@@ -204,6 +205,84 @@ async def _prepare_cpp_debug_session(files: List[FileSpec]):
         shutil.rmtree(workdir, ignore_errors=True)
         raise
 
+async def _prepare_python_debug_session(files: List[FileSpec], entry: str, breakpoints: list[dict]):
+    """
+    For Python debug mode:
+      - write files to a temp dir
+      - copy oc_py_debugger.py into the workdir
+      - start the debugger runner inside python image
+    Returns (workdir, proc)
+    """
+    if not _should_use_docker():
+        raise HTTPException(
+            status_code=500,
+            detail="Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).",
+        )
+
+    workdir = tempfile.mkdtemp(prefix="oc-pydbg-")
+    try:
+        _write_files(files, workdir)
+
+        # copy debugger shim
+        dbg_src = os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_py_debugger.py")
+        dbg_src = os.path.abspath(dbg_src)
+        dbg_dst = os.path.join(workdir, "oc_py_debugger.py")
+        shutil.copy2(dbg_src, dbg_dst)
+
+        mount = f"{os.path.abspath(workdir)}:/work:rw"
+        init_bp_env = json.dumps(
+            [{"file": bp.get("file"), "line": bp.get("line")} for bp in (breakpoints or [])],
+            separators=(",", ":"),
+        )
+        init_bp_path = os.path.join(workdir, "_oc_init_bps.json")
+        try:
+            with open(init_bp_path, "w", encoding="utf-8") as f:
+                f.write(init_bp_env)
+        except Exception:
+            init_bp_path = ""
+
+        cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "--network",
+            "none",
+            "--cpus",
+            "1",
+            "--memory",
+            "512m",
+            "--pids-limit",
+            "256",
+            "-v",
+            mount,
+            "-w",
+            "/work",
+            "-e",
+            f"OC_INIT_BPS={init_bp_env}",
+        ]
+        if init_bp_path:
+            cmd.extend(["-e", f"OC_INIT_BPS_PATH={init_bp_path}"])
+        cmd.extend([
+            DOCKER_IMAGES["python"],
+            "python",
+            "-u",
+            "oc_py_debugger.py",
+            entry,
+        ])
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        return workdir, proc
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
 # ---------- Route ----------
 @router.post("/run", response_model=RunResp)
 async def create_run(request: Request, body: RunReq) -> RunResp:
@@ -225,29 +304,41 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
         "breakpoints": breakpoints,
     }
 
-    # For C++ debug, compile ahead of the websocket connection and start gdb in MI mode.
-    if mode == "debug" and lang == "cpp":
-        try:
-            workdir, proc = await _prepare_cpp_debug_session(body.files)
-
-            # Ensure gdb actually started; if it exited immediately, surface the error now.
+    if mode == "debug":
+        if lang == "cpp":
             try:
-                rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
-            except asyncio.TimeoutError:
-                rc = None
-            if rc is not None:
-                out, err = await proc.communicate()
-                msg = (err or out or f"gdb exited with code {rc}").decode(errors="ignore")
-                raise HTTPException(status_code=500, detail=f"gdb failed to start: {msg}")
-        except HTTPException:
-            raise
-        except Exception as e:
-            msg = str(e) or repr(e)
-            raise HTTPException(status_code=500, detail=msg)
+                workdir, proc = await _prepare_cpp_debug_session(body.files)
 
-        session["workdir"] = workdir
-        session["proc"] = proc
-        session["state"] = "debug-ready"
+                # Ensure gdb actually started; if it exited immediately, surface the error now.
+                try:
+                    rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    rc = None
+                if rc is not None:
+                    out, err = await proc.communicate()
+                    msg = (err or out or f"gdb exited with code {rc}").decode(errors="ignore")
+                    raise HTTPException(status_code=500, detail=f"gdb failed to start: {msg}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                msg = str(e) or repr(e)
+                raise HTTPException(status_code=500, detail=msg)
+
+            session["workdir"] = workdir
+            session["proc"] = proc
+            session["state"] = "debug-ready"
+        elif lang == "python":
+            try:
+                workdir, proc = await _prepare_python_debug_session(body.files, body.entry, breakpoints)
+            except HTTPException:
+                raise
+            except Exception as e:
+                msg = str(e) or repr(e)
+                raise HTTPException(status_code=500, detail=msg)
+
+            session["workdir"] = workdir
+            session["proc"] = proc
+            session["state"] = "debug-ready"
 
     SESSIONS[sid] = session
     return RunResp(session_id=sid, ws_url=_build_ws_url(request, sid))
