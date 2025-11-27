@@ -1,0 +1,75 @@
+file,path,line_no,line,reasons,is_good_breakpoint,has_for,has_while,has_if,has_else,has_indexing,has_comparison,reason_count,line_length,num_ops,num_parens,num_tokens
+clone_graph.js,data/raw/javascript/clone_graph.js,9,// DFS with map from original node -> cloned node to handle cycles,comparison,0,0,0,0,0,0,1,1,66,4,0,13
+clone_graph.js,data/raw/javascript/clone_graph.js,10,if (!node) return null;,if,1,0,0,1,0,0,0,1,23,1,2,4
+clone_graph.js,data/raw/javascript/clone_graph.js,14,if (map.has(curr)) {,if,1,0,0,1,0,0,0,1,20,0,5,3
+clone_graph.js,data/raw/javascript/clone_graph.js,19,for (const neighbor of curr.neighbors) {,for_loop,1,1,0,0,0,0,0,1,40,0,3,6
+house_robber.js,data/raw/javascript/house_robber.js,5,for (const num of nums) {,for_loop,1,1,0,0,0,0,0,1,25,0,3,6
+binary_tree_traversal.js,data/raw/javascript/binary_tree_traversal.js,12,if (!node) return;,if,1,0,0,1,0,0,0,1,18,1,2,3
+binary_tree_traversal.js,data/raw/javascript/binary_tree_traversal.js,24,if (!node) return;,if,1,0,0,1,0,0,0,1,18,1,2,3
+binary_tree_traversal.js,data/raw/javascript/binary_tree_traversal.js,36,if (!node) return;,if,1,0,0,1,0,0,0,1,18,1,2,3
+number_of_islands.js,data/raw/javascript/number_of_islands.js,3,if (!grid || grid.length === 0) return 0;,if;comparison,1,0,0,1,0,0,1,2,41,6,2,8
+number_of_islands.js,data/raw/javascript/number_of_islands.js,5,const n = grid[0].length;,indexing,0,0,0,0,0,1,0,1,25,1,2,4
+number_of_islands.js,data/raw/javascript/number_of_islands.js,9,if (r < 0 || r >= m || c < 0 || c >= n || grid[r][c] !== '1') {,if;indexing;comparison,1,0,0,1,0,1,1,3,63,17,7,21
+number_of_islands.js,data/raw/javascript/number_of_islands.js,12,grid[r][c] = '0';,indexing,0,0,0,0,0,1,0,1,17,1,4,3
+number_of_islands.js,data/raw/javascript/number_of_islands.js,19,for (let i = 0; i < m; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,29,4,3,10
+number_of_islands.js,data/raw/javascript/number_of_islands.js,20,for (let j = 0; j < n; j++) {,for_loop;comparison,1,1,0,0,0,0,1,2,29,4,3,10
+number_of_islands.js,data/raw/javascript/number_of_islands.js,21,if (grid[i][j] === '1') {,if;indexing;comparison,1,0,0,1,0,1,1,3,25,3,7,5
+binary_search_template_2.js,data/raw/javascript/binary_search_template_2.js,2,"// Template 2: search on [left, right) with left < right condition",comparison,0,0,0,0,0,0,1,1,66,3,2,12
+binary_search_template_2.js,data/raw/javascript/binary_search_template_2.js,5,while (left < right) {,while_loop;comparison,1,0,1,0,0,0,1,2,22,1,3,5
+binary_search_template_2.js,data/raw/javascript/binary_search_template_2.js,7,if (nums[mid] < target) {,if;indexing;comparison,1,0,0,1,0,1,1,3,25,1,5,5
+binary_search_template_2.js,data/raw/javascript/binary_search_template_2.js,13,return left < nums.length && nums[left] === target ? left : -1;,indexing;comparison,1,0,0,0,0,1,1,2,63,7,2,12
+search_rotated_array.js,data/raw/javascript/search_rotated_array.js,5,while (left <= right) {,while_loop;comparison,1,0,1,0,0,0,1,2,23,2,3,5
+search_rotated_array.js,data/raw/javascript/search_rotated_array.js,7,if (nums[mid] === target) return mid;,if;indexing;comparison,1,0,0,1,0,1,1,3,37,3,4,6
+search_rotated_array.js,data/raw/javascript/search_rotated_array.js,8,if (nums[left] <= nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,30,2,7,5
+search_rotated_array.js,data/raw/javascript/search_rotated_array.js,9,if (nums[left] <= target && target < nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,49,5,7,9
+search_rotated_array.js,data/raw/javascript/search_rotated_array.js,15,if (nums[mid] < target && target <= nums[right]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,50,5,7,9
+max_depth.js,data/raw/javascript/max_depth.js,3,if (!root) {,if,1,0,0,1,0,0,0,1,12,1,3,3
+course_schedule.js,data/raw/javascript/course_schedule.js,3,"const adj = Array.from({ length: numCourses }, () => []);",comparison,0,0,0,0,0,1,1,1,57,3,8,10
+course_schedule.js,data/raw/javascript/course_schedule.js,5,"for (const [dest, src] of prerequisites) {",for_loop;indexing,1,1,0,0,0,1,0,2,42,0,5,7
+course_schedule.js,data/raw/javascript/course_schedule.js,6,adj[src].push(dest);,indexing,0,0,0,0,0,1,0,1,20,0,4,1
+course_schedule.js,data/raw/javascript/course_schedule.js,7,indegree[dest]++;,indexing,0,0,0,0,0,1,0,1,17,2,2,1
+course_schedule.js,data/raw/javascript/course_schedule.js,10,for (let i = 0; i < numCourses; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,38,4,3,10
+course_schedule.js,data/raw/javascript/course_schedule.js,11,if (indegree[i] === 0) queue.push(i);,if;indexing;comparison,1,0,0,1,0,1,1,3,37,3,6,5
+course_schedule.js,data/raw/javascript/course_schedule.js,14,while (queue.length) {,while_loop,1,0,1,0,0,0,0,1,22,0,3,3
+course_schedule.js,data/raw/javascript/course_schedule.js,17,for (const next of adj[course]) {,for_loop;indexing,1,1,0,0,0,1,0,2,33,0,5,6
+course_schedule.js,data/raw/javascript/course_schedule.js,18,indegree[next]--;,indexing,0,0,0,0,0,1,0,1,17,2,2,1
+course_schedule.js,data/raw/javascript/course_schedule.js,19,if (indegree[next] === 0) queue.push(next);,if;indexing;comparison,1,0,0,1,0,1,1,3,43,3,6,5
+course_schedule.js,data/raw/javascript/course_schedule.js,22,return visited === numCourses;,comparison,0,0,0,0,0,0,1,1,30,3,0,4
+sliding_window_maximum.js,data/raw/javascript/sliding_window_maximum.js,5,for (let i = 0; i < nums.length; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,39,4,3,10
+sliding_window_maximum.js,data/raw/javascript/sliding_window_maximum.js,6,if (deque.length && deque[0] <= i - k) {,if;indexing;comparison,1,0,0,1,0,1,1,3,40,5,5,9
+sliding_window_maximum.js,data/raw/javascript/sliding_window_maximum.js,9,while (deque.length && nums[deque[deque.length - 1]] <= nums[i]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,66,5,9,9
+sliding_window_maximum.js,data/raw/javascript/sliding_window_maximum.js,13,if (i >= k - 1) {,if;comparison,1,0,0,1,0,0,1,2,17,3,3,7
+sliding_window_maximum.js,data/raw/javascript/sliding_window_maximum.js,14,result.push(nums[deque[0]]);,indexing,0,0,0,0,0,1,0,1,28,0,6,1
+longest_palindromic_substring.js,data/raw/javascript/longest_palindromic_substring.js,3,if (!s) return '';,if,1,0,0,1,0,0,0,1,18,1,2,4
+longest_palindromic_substring.js,data/raw/javascript/longest_palindromic_substring.js,8,while (left >= 0 && right < s.length && s[left] === s[right]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,63,10,7,13
+longest_palindromic_substring.js,data/raw/javascript/longest_palindromic_substring.js,15,for (let i = 0; i < s.length; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,36,4,3,10
+longest_palindromic_substring.js,data/raw/javascript/longest_palindromic_substring.js,19,if (len > end - start + 1) {,if;comparison,1,0,0,1,0,0,1,2,28,3,3,9
+two_sum.js,data/raw/javascript/two_sum.js,2,// Hash map value -> index to find complements in one pass,comparison,0,0,0,0,0,0,1,1,58,4,0,12
+two_sum.js,data/raw/javascript/two_sum.js,4,for (let i = 0; i < nums.length; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,39,4,3,10
+two_sum.js,data/raw/javascript/two_sum.js,5,const complement = target - nums[i];,indexing,0,0,0,0,0,1,0,1,36,2,2,6
+two_sum.js,data/raw/javascript/two_sum.js,6,if (indexMap.has(complement)) {,if,1,0,0,1,0,0,0,1,31,0,5,3
+two_sum.js,data/raw/javascript/two_sum.js,7,"return [indexMap.get(complement), i];",indexing,0,0,0,0,0,1,0,1,37,0,4,3
+two_sum.js,data/raw/javascript/two_sum.js,9,"indexMap.set(nums[i], i);",indexing,0,0,0,0,0,1,0,1,25,0,4,2
+coin_change.js,data/raw/javascript/coin_change.js,2,// 1D DP: dp[a] = min coins to reach amount a,indexing,0,0,0,0,0,1,0,1,45,3,2,11
+coin_change.js,data/raw/javascript/coin_change.js,4,dp[0] = 0;,indexing,0,0,0,0,0,1,0,1,10,1,2,3
+coin_change.js,data/raw/javascript/coin_change.js,5,for (const coin of coins) {,for_loop,1,1,0,0,0,0,0,1,27,0,3,6
+coin_change.js,data/raw/javascript/coin_change.js,6,for (let a = coin; a <= amount; a++) {,for_loop;comparison,1,1,0,0,0,0,1,2,38,5,3,10
+coin_change.js,data/raw/javascript/coin_change.js,7,if (dp[a - coin] !== Number.MAX_SAFE_INTEGER) {,if;indexing;comparison,1,0,0,1,0,1,1,3,47,4,5,7
+coin_change.js,data/raw/javascript/coin_change.js,8,"dp[a] = Math.min(dp[a], dp[a - coin] + 1);",indexing,0,0,0,0,0,1,0,1,42,3,8,8
+coin_change.js,data/raw/javascript/coin_change.js,12,return dp[amount] === Number.MAX_SAFE_INTEGER ? -1 : dp[amount];,indexing;comparison,1,0,0,0,0,1,1,2,64,4,4,8
+lowest_common_ancestor.js,data/raw/javascript/lowest_common_ancestor.js,3,if (!root || root === p || root === q) {,if;comparison,1,0,0,1,0,0,1,2,40,11,3,11
+lowest_common_ancestor.js,data/raw/javascript/lowest_common_ancestor.js,8,if (left && right) return root;,if,1,0,0,1,0,0,0,1,31,2,2,6
+three_sum.js,data/raw/javascript/three_sum.js,3,"nums.sort((a, b) => a - b);",comparison,0,0,0,0,0,0,1,1,27,3,4,6
+three_sum.js,data/raw/javascript/three_sum.js,6,for (let i = 0; i < n - 2; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,33,5,3,12
+three_sum.js,data/raw/javascript/three_sum.js,7,if (i > 0 && nums[i] === nums[i - 1]) continue;,if;indexing;comparison,1,0,0,1,0,1,1,3,47,7,6,11
+three_sum.js,data/raw/javascript/three_sum.js,10,const target = -nums[i];,indexing,0,0,0,0,0,1,0,1,24,2,2,4
+three_sum.js,data/raw/javascript/three_sum.js,11,while (left < right) {,while_loop;comparison,1,0,1,0,0,0,1,2,22,1,3,5
+three_sum.js,data/raw/javascript/three_sum.js,12,const sum = nums[left] + nums[right];,indexing,0,0,0,0,0,1,0,1,37,2,4,6
+three_sum.js,data/raw/javascript/three_sum.js,13,if (sum === target) {,if;comparison,1,0,0,1,0,0,1,2,21,3,3,5
+three_sum.js,data/raw/javascript/three_sum.js,14,"result.push([nums[i], nums[left], nums[right]]);",indexing,0,0,0,0,0,1,0,1,48,0,10,3
+three_sum.js,data/raw/javascript/three_sum.js,17,while (left < right && nums[left] === nums[left - 1]) left++;,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,61,9,6,11
+three_sum.js,data/raw/javascript/three_sum.js,18,while (left < right && nums[right] === nums[right + 1]) right--;,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,64,9,6,11
+three_sum.js,data/raw/javascript/three_sum.js,19,} else if (sum < target) {,comparison,0,0,0,1,0,0,1,1,26,1,4,7
+longest_substring_without_repeat.js,data/raw/javascript/longest_substring_without_repeat.js,6,for (let i = 0; i < s.length; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,36,4,3,10
+longest_substring_without_repeat.js,data/raw/javascript/longest_substring_without_repeat.js,7,const ch = s[i];,indexing,0,0,0,0,0,1,0,1,16,1,2,4
+longest_substring_without_repeat.js,data/raw/javascript/longest_substring_without_repeat.js,8,if (lastSeen.has(ch) && lastSeen.get(ch) >= left) {,if;comparison,1,0,0,1,0,0,1,2,51,4,7,7

@@ -1,0 +1,98 @@
+file,path,line_no,line,reasons,is_good_breakpoint,has_for,has_while,has_if,has_else,has_indexing,has_comparison,reason_count,line_length,num_ops,num_parens,num_tokens
+CoinChange.java,data/raw/java/CoinChange.java,2,"def coinChange(self, coins: List[int], amount: int) -> int:",indexing;comparison,1,0,0,0,0,1,1,2,59,2,4,8
+CoinChange.java,data/raw/java/CoinChange.java,6,if amount == 0:,comparison,0,0,0,1,0,0,1,1,15,2,0,4
+CoinChange.java,data/raw/java/CoinChange.java,9,return memo[amount],indexing,0,0,0,0,0,1,0,1,19,0,2,2
+CoinChange.java,data/raw/java/CoinChange.java,13,if amount - coin >= 0:,comparison,0,0,0,1,0,0,1,1,22,3,0,6
+CoinChange.java,data/raw/java/CoinChange.java,16,memo[amount] = res,indexing,0,0,0,0,0,1,0,1,18,1,2,3
+CoinChange.java,data/raw/java/CoinChange.java,20,return -1 if minCoins >= 1e9 else minCoins,comparison,0,0,0,1,0,0,1,1,42,3,0,8
+LongestPalindromicSubstring.java,data/raw/java/LongestPalindromicSubstring.java,2,"def longestPalindrome(self, s: str) -> str:",comparison,0,0,0,0,0,0,1,1,43,2,2,6
+LongestPalindromicSubstring.java,data/raw/java/LongestPalindromicSubstring.java,10,if s[i] == s[j] and (j - i <= 2 or dp[i + 1][j - 1]):,indexing;comparison,1,0,0,1,0,1,1,2,53,7,10,16
+LongestPalindromicSubstring.java,data/raw/java/LongestPalindromicSubstring.java,11,dp[i][j] = True,indexing,0,0,0,0,0,1,0,1,15,1,4,3
+LongestPalindromicSubstring.java,data/raw/java/LongestPalindromicSubstring.java,12,if resLen < (j - i + 1):,comparison,0,0,0,1,0,0,1,1,24,3,2,8
+LongestPalindromicSubstring.java,data/raw/java/LongestPalindromicSubstring.java,16,return s[resIdx : resIdx + resLen],indexing,0,0,0,0,0,1,0,1,34,1,2,6
+ThreeSum.java,data/raw/java/ThreeSum.java,8,public List<List<Integer>> threeSum(int[] nums) {,comparison,0,0,0,0,0,1,1,1,49,4,5,5
+ThreeSum.java,data/raw/java/ThreeSum.java,9,List<List<Integer>> result = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,47,7,2,5
+ThreeSum.java,data/raw/java/ThreeSum.java,12,for (int i = 0; i < n - 2; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,33,5,3,12
+ThreeSum.java,data/raw/java/ThreeSum.java,13,if (i > 0 && nums[i] == nums[i - 1]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,38,6,7,11
+ThreeSum.java,data/raw/java/ThreeSum.java,16,int target = -nums[i];,indexing,0,0,0,0,0,1,0,1,22,2,2,4
+ThreeSum.java,data/raw/java/ThreeSum.java,18,while (left < right) {,while_loop;comparison,1,0,1,0,0,0,1,2,22,1,3,5
+ThreeSum.java,data/raw/java/ThreeSum.java,19,int sum = nums[left] + nums[right];,indexing,0,0,0,0,0,1,0,1,35,2,4,6
+ThreeSum.java,data/raw/java/ThreeSum.java,20,if (sum == target) {,if;comparison,1,0,0,1,0,0,1,2,20,2,3,5
+ThreeSum.java,data/raw/java/ThreeSum.java,21,"result.add(Arrays.asList(nums[i], nums[left], nums[right]));",indexing,0,0,0,0,0,1,0,1,60,0,10,3
+ThreeSum.java,data/raw/java/ThreeSum.java,24,while (left < right && nums[left] == nums[left - 1]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,54,6,7,11
+ThreeSum.java,data/raw/java/ThreeSum.java,27,while (left < right && nums[right] == nums[right + 1]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,56,6,7,11
+ThreeSum.java,data/raw/java/ThreeSum.java,30,} else if (sum < target) {,comparison,0,0,0,1,0,0,1,1,26,1,4,7
+BinarySearchTemplate2.java,data/raw/java/BinarySearchTemplate2.java,2,"// Template 2: search on [left, right) with left < right condition",comparison,0,0,0,0,0,0,1,1,66,3,2,12
+BinarySearchTemplate2.java,data/raw/java/BinarySearchTemplate2.java,3,"// Finds lowest index where nums[idx] == target, returns -1 if not found",indexing;comparison,1,0,0,1,0,1,1,2,72,5,2,13
+BinarySearchTemplate2.java,data/raw/java/BinarySearchTemplate2.java,6,while (left < right) {,while_loop;comparison,1,0,1,0,0,0,1,2,22,1,3,5
+BinarySearchTemplate2.java,data/raw/java/BinarySearchTemplate2.java,8,if (nums[mid] < target) {,if;indexing;comparison,1,0,0,1,0,1,1,3,25,1,5,5
+BinarySearchTemplate2.java,data/raw/java/BinarySearchTemplate2.java,14,if (left < nums.length && nums[left] == target) {,if;indexing;comparison,1,0,0,1,0,1,1,3,49,5,5,9
+SearchRotatedArray.java,data/raw/java/SearchRotatedArray.java,6,while (left <= right) {,while_loop;comparison,1,0,1,0,0,0,1,2,23,2,3,5
+SearchRotatedArray.java,data/raw/java/SearchRotatedArray.java,8,if (nums[mid] == target) {,if;indexing;comparison,1,0,0,1,0,1,1,3,26,2,5,5
+SearchRotatedArray.java,data/raw/java/SearchRotatedArray.java,11,if (nums[left] <= nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,30,2,7,5
+SearchRotatedArray.java,data/raw/java/SearchRotatedArray.java,12,if (nums[left] <= target && target < nums[mid]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,49,5,7,9
+SearchRotatedArray.java,data/raw/java/SearchRotatedArray.java,18,if (nums[mid] < target && target <= nums[right]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,50,5,7,9
+LowestCommonAncestor.java,data/raw/java/LowestCommonAncestor.java,15,if (root == null || root == p || root == q) {,if;comparison,1,0,0,1,0,0,1,2,45,10,3,13
+LowestCommonAncestor.java,data/raw/java/LowestCommonAncestor.java,20,if (left != null && right != null) {,if;comparison,1,0,0,1,0,0,1,2,36,6,3,9
+LowestCommonAncestor.java,data/raw/java/LowestCommonAncestor.java,23,return left != null ? left : right;,comparison,0,0,0,0,0,0,1,1,35,2,0,8
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,15,// Recursive inorder: left -> root -> right,comparison,0,0,0,0,0,0,1,1,43,6,0,8
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,16,public List<Integer> inorderTraversal(TreeNode root) {,comparison,0,0,0,0,0,0,1,1,54,2,3,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,17,List<Integer> result = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,41,5,2,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,22,"private void inorder(TreeNode node, List<Integer> res) {",comparison,0,0,0,0,0,0,1,1,56,2,3,7
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,23,if (node == null) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,31,// Recursive preorder: root -> left -> right,comparison,0,0,0,0,0,0,1,1,44,6,0,8
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,32,public List<Integer> preorderTraversal(TreeNode root) {,comparison,0,0,0,0,0,0,1,1,55,2,3,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,33,List<Integer> result = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,41,5,2,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,38,"private void preorder(TreeNode node, List<Integer> res) {",comparison,0,0,0,0,0,0,1,1,57,2,3,7
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,39,if (node == null) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,47,// Recursive postorder: left -> right -> root,comparison,0,0,0,0,0,0,1,1,45,6,0,8
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,48,public List<Integer> postorderTraversal(TreeNode root) {,comparison,0,0,0,0,0,0,1,1,56,2,3,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,49,List<Integer> result = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,41,5,2,5
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,54,"private void postorder(TreeNode node, List<Integer> res) {",comparison,0,0,0,0,0,0,1,1,58,2,3,7
+BinaryTreeTraversal.java,data/raw/java/BinaryTreeTraversal.java,55,if (node == null) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,8,if (nums == null || nums.length == 0 || k == 0) {,if;comparison,1,0,0,1,0,0,1,2,49,10,3,13
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,9,return new int[0];,indexing,0,0,0,0,0,1,0,1,18,0,2,3
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,12,int[] result = new int[n - k + 1];,indexing,0,0,0,0,0,1,0,1,34,3,4,9
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,13,Deque<Integer> deque = new LinkedList<>();,comparison,0,0,0,0,0,0,1,1,42,5,2,5
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,15,for (int i = 0; i < n; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,29,4,3,10
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,16,while (!deque.isEmpty() && deque.peekFirst() <= i - k) {,while_loop;comparison,1,0,1,0,0,0,1,2,56,6,7,9
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,19,while (!deque.isEmpty() && nums[deque.peekLast()] <= nums[i]) {,while_loop;indexing;comparison,1,0,1,0,0,1,1,3,63,5,11,7
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,23,if (i >= k - 1) {,if;comparison,1,0,0,1,0,0,1,2,17,3,3,7
+SlidingWindowMaximum.java,data/raw/java/SlidingWindowMaximum.java,24,result[i - k + 1] = nums[deque.peekFirst()];,indexing,0,0,0,0,0,1,0,1,44,3,6,7
+CourseSchedule.java,data/raw/java/CourseSchedule.java,2,"def canFinish(self, numCourses: int, prerequisites: List[List[int]]) -> bool:",indexing;comparison,1,0,0,0,0,1,1,2,77,2,6,8
+CourseSchedule.java,data/raw/java/CourseSchedule.java,6,indegree[dst] += 1,indexing,0,0,0,0,0,1,0,1,18,2,2,3
+CourseSchedule.java,data/raw/java/CourseSchedule.java,7,adj[src].append(dst),indexing,0,0,0,0,0,1,0,1,20,0,4,1
+CourseSchedule.java,data/raw/java/CourseSchedule.java,11,if indegree[n] == 0:,indexing;comparison,1,0,0,1,0,1,1,2,20,2,2,4
+CourseSchedule.java,data/raw/java/CourseSchedule.java,18,for nei in adj[node]:,indexing,0,1,0,0,0,1,0,1,21,0,2,4
+CourseSchedule.java,data/raw/java/CourseSchedule.java,19,indegree[nei] -= 1,indexing,0,0,0,0,0,1,0,1,18,2,2,3
+CourseSchedule.java,data/raw/java/CourseSchedule.java,20,if indegree[nei] == 0:,indexing;comparison,1,0,0,1,0,1,1,2,22,2,2,4
+CourseSchedule.java,data/raw/java/CourseSchedule.java,23,return finish == numCourses,comparison,0,0,0,0,0,0,1,1,27,2,0,4
+CloneGraph.java,data/raw/java/CloneGraph.java,10,if (node == null) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+CloneGraph.java,data/raw/java/CloneGraph.java,13,"Map<Node, Node> map = new HashMap<>();",comparison,0,0,0,0,0,0,1,1,38,5,2,6
+CloneGraph.java,data/raw/java/CloneGraph.java,17,"private Node dfs(Node node, Map<Node, Node> map) {",comparison,0,0,0,0,0,0,1,1,50,2,3,8
+CloneGraph.java,data/raw/java/CloneGraph.java,18,if (map.containsKey(node)) {,if,1,0,0,1,0,0,0,1,28,0,5,3
+CloneGraph.java,data/raw/java/CloneGraph.java,23,for (Node neighbor : node.neighbors) {,for_loop,1,1,0,0,0,0,0,1,38,0,3,6
+CloneGraph.java,data/raw/java/CloneGraph.java,31,public List<Node> neighbors;,comparison,0,0,0,0,0,0,1,1,28,2,0,3
+CloneGraph.java,data/raw/java/CloneGraph.java,35,neighbors = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,30,3,2,4
+CloneGraph.java,data/raw/java/CloneGraph.java,40,neighbors = new ArrayList<>();,comparison,0,0,0,0,0,0,1,1,30,3,2,4
+CloneGraph.java,data/raw/java/CloneGraph.java,43,"public Node(int val, List<Node> neighbors) {",comparison,0,0,0,0,0,0,1,1,44,2,3,6
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,5,if (grid == null || grid.length == 0) {,if;comparison,1,0,0,1,0,0,1,2,39,6,3,9
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,8,"int m = grid.length, n = grid[0].length;",indexing,0,0,0,0,0,1,0,1,40,2,2,7
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,10,for (int i = 0; i < m; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,29,4,3,10
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,11,for (int j = 0; j < n; j++) {,for_loop;comparison,1,1,0,0,0,0,1,2,29,4,3,10
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,12,if (grid[i][j] == '1') {,if;indexing;comparison,1,0,0,1,0,1,1,3,24,2,7,5
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,22,if (r < 0 || r >= m || c < 0 || c >= n || grid[r][c] != '1') {,if;indexing;comparison,1,0,0,1,0,1,1,3,62,16,7,21
+NumberOfIslands.java,data/raw/java/NumberOfIslands.java,25,grid[r][c] = '0';,indexing,0,0,0,0,0,1,0,1,17,1,4,3
+HouseRobber.java,data/raw/java/HouseRobber.java,7,if (i >= nums.length) {,if;comparison,1,0,0,1,0,0,1,2,23,2,3,5
+HouseRobber.java,data/raw/java/HouseRobber.java,11,"nums[i] + dfs(nums, i + 2));",indexing,0,0,0,0,0,1,0,1,28,2,5,6
+LongestSubstringWithoutRepeat.java,data/raw/java/LongestSubstringWithoutRepeat.java,8,"Map<Character, Integer> last = new HashMap<>();",comparison,0,0,0,0,0,0,1,1,47,5,2,6
+LongestSubstringWithoutRepeat.java,data/raw/java/LongestSubstringWithoutRepeat.java,10,for (int i = 0; i < s.length(); i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,38,4,5,10
+LongestSubstringWithoutRepeat.java,data/raw/java/LongestSubstringWithoutRepeat.java,12,if (last.containsKey(c) && last.get(c) >= left) {,if;comparison,1,0,0,1,0,0,1,2,49,4,7,7
+MaxDepth.java,data/raw/java/MaxDepth.java,15,if (root == null) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+TwoSum.java,data/raw/java/TwoSum.java,5,// HashMap to store value -> index while scanning once,comparison,0,0,1,0,0,0,1,1,54,4,0,10
+TwoSum.java,data/raw/java/TwoSum.java,8,"Map<Integer, Integer> map = new HashMap<>();",comparison,0,0,0,0,0,0,1,1,44,5,2,6
+TwoSum.java,data/raw/java/TwoSum.java,9,for (int i = 0; i < nums.length; i++) {,for_loop;comparison,1,1,0,0,0,0,1,2,39,4,3,10
+TwoSum.java,data/raw/java/TwoSum.java,10,int complement = target - nums[i];,indexing,0,0,0,0,0,1,0,1,34,2,2,6
+TwoSum.java,data/raw/java/TwoSum.java,11,if (map.containsKey(complement)) {,if,1,0,0,1,0,0,0,1,34,0,5,3
+TwoSum.java,data/raw/java/TwoSum.java,14,"map.put(nums[i], i);",indexing,0,0,0,0,0,1,0,1,20,0,4,2
+TwoSum.java,data/raw/java/TwoSum.java,16,return new int[0];,indexing,0,0,0,0,0,1,0,1,18,0,2,3

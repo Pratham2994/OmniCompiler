@@ -1,0 +1,109 @@
+file,path,line_no,line,reasons,is_good_breakpoint,has_for,has_while,has_if,has_else,has_indexing,has_comparison,reason_count,line_length,num_ops,num_parens,num_tokens
+search_rotated_array.go,data/raw/go/search_rotated_array.go,8,for left <= right {,for_loop;comparison,1,1,0,0,0,0,1,2,19,2,1,5
+search_rotated_array.go,data/raw/go/search_rotated_array.go,10,if nums[mid] == target {,if;indexing;comparison,1,0,0,1,0,1,1,3,24,2,3,5
+search_rotated_array.go,data/raw/go/search_rotated_array.go,13,if nums[left] <= nums[mid] {,if;indexing;comparison,1,0,0,1,0,1,1,3,28,2,5,5
+search_rotated_array.go,data/raw/go/search_rotated_array.go,14,if nums[left] <= target && target < nums[mid] {,if;indexing;comparison,1,0,0,1,0,1,1,3,47,5,5,9
+search_rotated_array.go,data/raw/go/search_rotated_array.go,20,if nums[mid] < target && target <= nums[right] {,if;indexing;comparison,1,0,0,1,0,1,1,3,48,5,5,9
+max_depth.go,data/raw/go/max_depth.go,10,if root == nil {,if;comparison,1,0,0,1,0,0,1,2,16,2,1,5
+max_depth.go,data/raw/go/max_depth.go,18,for stack.Len() > 0 {,for_loop;comparison,1,1,0,0,0,0,1,2,21,1,3,5
+max_depth.go,data/raw/go/max_depth.go,22,node := pair[0].(*TreeNode),indexing,0,0,0,0,0,1,0,1,27,2,4,3
+max_depth.go,data/raw/go/max_depth.go,23,depth := pair[1].(int),indexing,0,0,0,0,0,1,0,1,22,1,4,3
+max_depth.go,data/raw/go/max_depth.go,25,if node != nil {,if;comparison,1,0,0,1,0,0,1,2,16,2,1,5
+max_depth.go,data/raw/go/max_depth.go,36,if a > b {,if;comparison,1,0,0,1,0,0,1,2,10,1,1,5
+binary_tree_traversal.go,data/raw/go/binary_tree_traversal.go,14,if node == nil {,if;comparison,1,0,0,1,0,0,1,2,16,2,1,5
+binary_tree_traversal.go,data/raw/go/binary_tree_traversal.go,18,if len(res) == depth {,if;comparison,1,0,0,1,0,0,1,2,22,2,3,5
+binary_tree_traversal.go,data/raw/go/binary_tree_traversal.go,22,"res[depth] = append(res[depth], node.Val)",indexing,0,0,0,0,0,1,0,1,41,1,6,4
+number_of_islands.go,data/raw/go/number_of_islands.go,3,"rows, cols := len(grid), len(grid[0])",indexing,0,0,0,0,0,1,0,1,37,1,6,5
+number_of_islands.go,data/raw/go/number_of_islands.go,8,if r < 0 || c < 0 || r >= rows ||,if;comparison,1,0,0,1,0,0,1,2,33,10,0,13
+number_of_islands.go,data/raw/go/number_of_islands.go,9,c >= cols || grid[r][c] == '0' {,indexing;comparison,1,0,0,0,0,1,1,2,32,6,5,8
+number_of_islands.go,data/raw/go/number_of_islands.go,12,grid[r][c] = '0',indexing,0,0,0,0,0,1,0,1,16,1,4,3
+number_of_islands.go,data/raw/go/number_of_islands.go,13,"for _, dir := range directions {",for_loop,1,1,0,0,0,0,0,1,32,1,1,7
+number_of_islands.go,data/raw/go/number_of_islands.go,14,"dfs(r+dir[0], c+dir[1])",indexing,0,0,0,0,0,1,0,1,23,2,6,2
+number_of_islands.go,data/raw/go/number_of_islands.go,18,for r := 0; r < rows; r++ {,for_loop;comparison,1,1,0,0,0,0,1,2,27,4,1,9
+number_of_islands.go,data/raw/go/number_of_islands.go,19,for c := 0; c < cols; c++ {,for_loop;comparison,1,1,0,0,0,0,1,2,27,4,1,9
+number_of_islands.go,data/raw/go/number_of_islands.go,20,if grid[r][c] == '1' {,if;indexing;comparison,1,0,0,1,0,1,1,3,22,2,5,5
+binary_search_template_2.go,data/raw/go/binary_search_template_2.go,3,// BinarySearch implements template-2 binary search (left < right condition).,comparison,0,0,0,0,0,0,1,1,77,4,2,10
+binary_search_template_2.go,data/raw/go/binary_search_template_2.go,7,if len(nums) == 0 {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+binary_search_template_2.go,data/raw/go/binary_search_template_2.go,11,for left < right {,for_loop;comparison,1,1,0,0,0,0,1,2,18,1,1,5
+binary_search_template_2.go,data/raw/go/binary_search_template_2.go,13,if nums[mid] < target {,if;indexing;comparison,1,0,0,1,0,1,1,3,23,1,3,5
+binary_search_template_2.go,data/raw/go/binary_search_template_2.go,19,if nums[left] == target {,if;indexing;comparison,1,0,0,1,0,1,1,3,25,2,3,5
+clone_graph.go,data/raw/go/clone_graph.go,10,oldToNew := make(map[*Node]*Node),indexing,0,0,0,0,0,1,0,1,33,3,4,3
+clone_graph.go,data/raw/go/clone_graph.go,14,if node == nil {,if;comparison,1,0,0,1,0,0,1,2,16,2,1,5
+clone_graph.go,data/raw/go/clone_graph.go,18,"if _, found := oldToNew[node]; found {",if;indexing,1,0,0,1,0,1,0,2,38,1,3,7
+clone_graph.go,data/raw/go/clone_graph.go,19,return oldToNew[node],indexing,0,0,0,0,0,1,0,1,21,0,2,2
+clone_graph.go,data/raw/go/clone_graph.go,23,oldToNew[node] = copy,indexing,0,0,0,0,0,1,0,1,21,1,2,3
+clone_graph.go,data/raw/go/clone_graph.go,24,"for _, nei := range node.Neighbors {",for_loop,1,1,0,0,0,0,0,1,36,1,1,7
+house_robber.go,data/raw/go/house_robber.go,4,for i := 0; i <= n; i++ {,for_loop;comparison,1,1,0,0,0,0,1,2,25,5,1,9
+house_robber.go,data/raw/go/house_robber.go,5,memo[i] = -1,indexing,0,0,0,0,0,1,0,1,12,2,2,3
+house_robber.go,data/raw/go/house_robber.go,10,if i >= len(nums) {,if;comparison,1,0,0,1,0,0,1,2,19,2,3,5
+house_robber.go,data/raw/go/house_robber.go,13,if memo[i] != -1 {,if;indexing;comparison,1,0,0,1,0,1,1,3,18,3,3,5
+house_robber.go,data/raw/go/house_robber.go,14,return memo[i],indexing,0,0,0,0,0,1,0,1,14,0,2,2
+house_robber.go,data/raw/go/house_robber.go,16,"memo[i] = max(dfs(i+1), nums[i] + dfs(i+2))",indexing,0,0,0,0,0,1,0,1,43,4,10,6
+house_robber.go,data/raw/go/house_robber.go,17,return memo[i],indexing,0,0,0,0,0,1,0,1,14,0,2,2
+house_robber.go,data/raw/go/house_robber.go,24,if a > b {,if;comparison,1,0,0,1,0,0,1,2,10,1,1,5
+lowest_common_ancestor.go,data/raw/go/lowest_common_ancestor.go,11,if root == nil || p == nil || q == nil {,if;comparison,1,0,0,1,0,0,1,2,40,10,1,13
+lowest_common_ancestor.go,data/raw/go/lowest_common_ancestor.go,14,"if max(p.Val, q.Val) < root.Val {",if;comparison,1,0,0,1,0,0,1,2,33,1,3,6
+lowest_common_ancestor.go,data/raw/go/lowest_common_ancestor.go,16,"} else if min(p.Val, q.Val) > root.Val {",comparison,0,0,0,1,0,0,1,1,40,1,4,8
+lowest_common_ancestor.go,data/raw/go/lowest_common_ancestor.go,24,if a > b {,if;comparison,1,0,0,1,0,0,1,2,10,1,1,5
+lowest_common_ancestor.go,data/raw/go/lowest_common_ancestor.go,31,if a < b {,if;comparison,1,0,0,1,0,0,1,2,10,1,1,5
+three_sum.go,data/raw/go/three_sum.go,10,for i := 0; i < n-2; i++ {,for_loop;comparison,1,1,0,0,0,0,1,2,26,5,1,9
+three_sum.go,data/raw/go/three_sum.go,11,if i > 0 && nums[i] == nums[i-1] {,if;indexing;comparison,1,0,0,1,0,1,1,3,34,6,5,9
+three_sum.go,data/raw/go/three_sum.go,14,target := -nums[i],indexing,0,0,0,0,0,1,0,1,18,2,2,3
+three_sum.go,data/raw/go/three_sum.go,16,for l < r {,for_loop;comparison,1,1,0,0,0,0,1,2,11,1,1,5
+three_sum.go,data/raw/go/three_sum.go,17,sum := nums[l] + nums[r],indexing,0,0,0,0,0,1,0,1,24,2,4,5
+three_sum.go,data/raw/go/three_sum.go,18,if sum == target {,if;comparison,1,0,0,1,0,0,1,2,18,2,1,5
+three_sum.go,data/raw/go/three_sum.go,19,"res = append(res, []int{nums[i], nums[l], nums[r]})",indexing,0,0,0,0,0,1,0,1,51,1,12,6
+three_sum.go,data/raw/go/three_sum.go,22,for l < r && nums[l] == nums[l-1] {,for_loop;indexing;comparison,1,1,0,0,0,1,1,3,35,6,5,9
+three_sum.go,data/raw/go/three_sum.go,25,for l < r && nums[r] == nums[r+1] {,for_loop;indexing;comparison,1,1,0,0,0,1,1,3,35,6,5,9
+three_sum.go,data/raw/go/three_sum.go,28,} else if sum < target {,comparison,0,0,0,1,0,0,1,1,24,1,2,7
+longest_substring_without_repeat.go,data/raw/go/longest_substring_without_repeat.go,7,lastSeen := make(map[byte]int),indexing,0,0,0,0,0,1,0,1,30,1,4,3
+longest_substring_without_repeat.go,data/raw/go/longest_substring_without_repeat.go,11,for right := 0; right < len(s); right++ {,for_loop;comparison,1,1,0,0,0,0,1,2,41,4,3,9
+longest_substring_without_repeat.go,data/raw/go/longest_substring_without_repeat.go,12,"if idx, ok := lastSeen[s[right]]; ok && idx >= left {",if;indexing;comparison,1,0,0,1,0,1,1,3,53,5,5,11
+longest_substring_without_repeat.go,data/raw/go/longest_substring_without_repeat.go,15,lastSeen[s[right]] = right,indexing,0,0,0,0,0,1,0,1,26,1,4,3
+longest_substring_without_repeat.go,data/raw/go/longest_substring_without_repeat.go,16,if cur := right - left + 1; cur > best {,if;comparison,1,0,0,1,0,0,1,2,40,4,1,12
+coin_change.go,data/raw/go/coin_change.go,3,for i := range dp {,for_loop,1,1,0,0,0,0,0,1,19,1,1,6
+coin_change.go,data/raw/go/coin_change.go,4,dp[i] = amount + 1,indexing,0,0,0,0,0,1,0,1,18,2,2,5
+coin_change.go,data/raw/go/coin_change.go,6,dp[0] = 0,indexing,0,0,0,0,0,1,0,1,9,1,2,3
+coin_change.go,data/raw/go/coin_change.go,7,for a := 1; a <= amount; a++ {,for_loop;comparison,1,1,0,0,0,0,1,2,30,5,1,9
+coin_change.go,data/raw/go/coin_change.go,8,"for _, c := range coins {",for_loop,1,1,0,0,0,0,0,1,25,1,1,7
+coin_change.go,data/raw/go/coin_change.go,9,if a-c >= 0 {,if;comparison,1,0,0,1,0,0,1,2,13,3,1,5
+coin_change.go,data/raw/go/coin_change.go,10,"dp[a] = min(dp[a], 1+dp[a-c])",indexing,0,0,0,0,0,1,0,1,29,3,8,4
+coin_change.go,data/raw/go/coin_change.go,14,if dp[amount] > amount {,if;indexing;comparison,1,0,0,1,0,1,1,3,24,1,3,5
+coin_change.go,data/raw/go/coin_change.go,17,return dp[amount],indexing,0,0,0,0,0,1,0,1,17,0,2,2
+coin_change.go,data/raw/go/coin_change.go,21,if a < b {,if;comparison,1,0,0,1,0,0,1,2,10,1,1,5
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,5,if len(nums) == 0 || k == 0 {,if;comparison,1,0,0,1,0,0,1,2,29,6,3,9
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,11,for i := 0; i < len(nums); i++ {,for_loop;comparison,1,1,0,0,0,0,1,2,32,4,3,9
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,12,if len(deque) > 0 && deque[0] <= i-k {,if;indexing;comparison,1,0,0,1,0,1,1,3,38,6,5,9
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,13,deque = deque[1:],indexing,0,0,0,0,0,1,0,1,17,1,2,3
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,15,for len(deque) > 0 && nums[deque[len(deque)-1]] <= nums[i] {,for_loop;indexing;comparison,1,1,0,0,0,1,1,3,60,6,11,9
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,16,deque = deque[:len(deque)-1],indexing,0,0,0,0,0,1,0,1,28,2,4,3
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,19,if i >= k-1 {,if;comparison,1,0,0,1,0,0,1,2,13,3,1,5
+sliding_window_maximum.go,data/raw/go/sliding_window_maximum.go,20,"result = append(result, nums[deque[0]])",indexing,0,0,0,0,0,1,0,1,39,1,6,4
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,6,for i := range dp {,for_loop,1,1,0,0,0,0,0,1,19,1,1,6
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,7,"dp[i] = make([]bool, n)",indexing,0,0,0,0,0,1,0,1,23,1,6,4
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,10,for i := n - 1; i >= 0; i-- {,for_loop;comparison,1,1,0,0,0,0,1,2,29,6,1,11
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,11,for j := i; j < n; j++ {,for_loop;comparison,1,1,0,0,0,0,1,2,24,4,1,9
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,12,if s[i] == s[j] && (j-i <= 2 || dp[i+1][j-1]) {,if;indexing;comparison,1,0,0,1,0,1,1,3,47,11,11,11
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,13,dp[i][j] = true,indexing,0,0,0,0,0,1,0,1,15,1,4,3
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,14,if resLen < (j-i+1) {,if;comparison,1,0,0,1,0,0,1,2,21,3,3,5
+longest_palindromic_substring.go,data/raw/go/longest_palindromic_substring.go,22,return s[resIdx : resIdx+resLen],indexing,0,0,0,0,0,1,0,1,32,1,2,4
+two_sum.go,data/raw/go/two_sum.go,3,// TwoSum uses a hashmap to store value -> index and finds complements in one pass.,comparison,0,0,0,0,0,0,1,1,83,4,0,16
+two_sum.go,data/raw/go/two_sum.go,5,index := make(map[int]int),indexing,0,0,0,0,0,1,0,1,26,1,4,3
+two_sum.go,data/raw/go/two_sum.go,6,"for i, num := range nums {",for_loop,1,1,0,0,0,0,0,1,26,1,1,7
+two_sum.go,data/raw/go/two_sum.go,7,"if j, ok := index[target-num]; ok {",if;indexing,1,0,0,1,0,1,0,2,35,2,3,7
+two_sum.go,data/raw/go/two_sum.go,10,index[num] = i,indexing,0,0,0,0,0,1,0,1,14,1,2,3
+course_schedule.go,data/raw/go/course_schedule.go,4,for i := 0; i < numCourses; i++ {,for_loop;comparison,1,1,0,0,0,0,1,2,33,4,1,9
+course_schedule.go,data/raw/go/course_schedule.go,5,adj[i] = []int{},indexing,0,0,0,0,0,1,0,1,16,1,6,3
+course_schedule.go,data/raw/go/course_schedule.go,8,"for _, prereq := range prerequisites {",for_loop,1,1,0,0,0,0,0,1,38,1,1,7
+course_schedule.go,data/raw/go/course_schedule.go,9,"src, dst := prereq[0], prereq[1]",indexing,0,0,0,0,0,1,0,1,32,1,4,5
+course_schedule.go,data/raw/go/course_schedule.go,10,indegree[dst]++,indexing,0,0,0,0,0,1,0,1,15,2,2,1
+course_schedule.go,data/raw/go/course_schedule.go,11,"adj[src] = append(adj[src], dst)",indexing,0,0,0,0,0,1,0,1,32,1,6,4
+course_schedule.go,data/raw/go/course_schedule.go,15,for n := 0; n < numCourses; n++ {,for_loop;comparison,1,1,0,0,0,0,1,2,33,4,1,9
+course_schedule.go,data/raw/go/course_schedule.go,16,if indegree[n] == 0 {,if;indexing;comparison,1,0,0,1,0,1,1,3,21,2,3,5
+course_schedule.go,data/raw/go/course_schedule.go,22,for len(q) > 0 {,for_loop;comparison,1,1,0,0,0,0,1,2,16,1,3,5
+course_schedule.go,data/raw/go/course_schedule.go,23,node := q[0],indexing,0,0,0,0,0,1,0,1,12,1,2,3
+course_schedule.go,data/raw/go/course_schedule.go,24,q = q[1:],indexing,0,0,0,0,0,1,0,1,9,1,2,3
+course_schedule.go,data/raw/go/course_schedule.go,26,"for _, nei := range adj[node] {",for_loop;indexing,1,1,0,0,0,1,0,2,31,1,3,7
+course_schedule.go,data/raw/go/course_schedule.go,27,indegree[nei]--,indexing,0,0,0,0,0,1,0,1,15,2,2,1
+course_schedule.go,data/raw/go/course_schedule.go,28,if indegree[nei] == 0 {,if;indexing;comparison,1,0,0,1,0,1,1,3,23,2,3,5
+course_schedule.go,data/raw/go/course_schedule.go,34,return finish == numCourses,comparison,0,0,0,0,0,0,1,1,27,2,0,4
