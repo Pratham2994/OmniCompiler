@@ -177,6 +177,13 @@ export default function Debug() {
     setLeftOpen(false)
     setTimeout(() => setLeftMounted(false), 200)
   }
+  const toggleFilesDrawer = () => {
+    if (leftOpen) {
+      closeDrawer()
+    } else {
+      openDrawer()
+    }
+  }
   useEffect(() => {
     if (!leftOpen) return
     const el = leftTrapRef.current
@@ -497,16 +504,6 @@ export default function Debug() {
       <DebugHeader settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden">
-        <button
-          data-testid="tid-left-drawer-trigger"
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-30 oc-icon-btn rounded-r-lg"
-          aria-label="Files & Deps"
-          onClick={openDrawer}
-          title="Files & Deps"
-        >
-          <Icon name="chevron-right" />
-        </button>
-
         <FilesDrawer
           leftMounted={leftMounted}
           leftOpen={leftOpen}
@@ -542,6 +539,8 @@ export default function Debug() {
             editorContainerRef={editorContainerRef}
             cursorPos={cursorPos}
             activeFileName={activeFile?.name}
+            onToggleFilesDrawer={toggleFilesDrawer}
+            filesDrawerOpen={leftOpen}
           />
 
           <motion.div

@@ -14,6 +14,8 @@ export default function EditorPane({
   editorContainerRef,
   cursorPos,
   activeFileName,
+  onToggleFilesDrawer,
+  filesDrawerOpen,
 }) {
   return (
     <motion.section
@@ -23,13 +25,23 @@ export default function EditorPane({
       animate={workspaceW ? { width: editorBasisPx } : undefined}
       transition={{ duration: 0.28, ease: [0.22, 0.8, 0.36, 1] }}
     >
-      <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between gap-2">
+      <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 text-xs md:text-sm">
           <nav aria-label="Breadcrumbs" className="flex items-center gap-1 text-[var(--oc-muted)]">
             <span>workspace</span>
             <span aria-hidden="true">/</span>
             <span className="text-[var(--oc-fg)] truncate">{activeFileName || 'main'}</span>
           </nav>
+          <button
+            type="button"
+            onClick={() => onToggleFilesDrawer?.()}
+            className="oc-icon-btn h-8 w-8 bg-[var(--oc-surface-2)]"
+            aria-label={filesDrawerOpen ? 'Hide files panel' : 'Show files panel'}
+            title={filesDrawerOpen ? 'Hide Files' : 'Show Files'}
+            aria-pressed={filesDrawerOpen ? 'true' : 'false'}
+          >
+            <Icon name={filesDrawerOpen ? 'chevron-left' : 'chevron-right'} />
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
