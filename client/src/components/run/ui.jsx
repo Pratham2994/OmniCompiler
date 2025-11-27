@@ -64,6 +64,35 @@ export function Icon({ name, className = 'size-4', strokeWidth = 2, label }) {
       return (<svg {...props}><rect x="6" y="6" width="12" height="12" rx="2" /></svg>)
     case 'pause':
       return (<svg {...props}><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>)
+    // Flow graph node type icons
+    case 'node-function':
+      return (<svg {...props}><path d="M4 6h4v2H4zM16 6h4v2h-4z" fill="currentColor" /><rect x="6" y="4" width="12" height="16" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>)
+    case 'node-class':
+      return (<svg {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /><circle cx="6" cy="6.5" r="1" fill="currentColor" /><path d="M9 13h6M9 16h4" /></svg>)
+    case 'node-method':
+      return (<svg {...props}><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>)
+    case 'node-if':
+      return (<svg {...props}><path d="M12 3l9 9-9 9-9-9 9-9z" /><path d="M12 8v4M12 14v2" /></svg>)
+    case 'node-loop':
+      return (<svg {...props}><circle cx="12" cy="12" r="9" /><path d="M12 6v2M12 16v2M6 12h2M16 12h2" /><path d="M9 9l3 3 3-3" /></svg>)
+    case 'node-stmt':
+      return (<svg {...props}><rect x="4" y="6" width="16" height="12" rx="2" /><path d="M8 10h8M8 14h5" /></svg>)
+    case 'node-return':
+      return (<svg {...props}><path d="M9 10l-5 5 5 5" /><path d="M4 15h13a3 3 0 003-3V6" /></svg>)
+    case 'node-try':
+      return (<svg {...props}><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>)
+    case 'node-switch':
+      return (<svg {...props}><path d="M18 8l-6 6-6-6" /><path d="M6 8h12" /><path d="M6 16h12" /><path d="M12 8v8" /></svg>)
+    case 'node-entry':
+      return (<svg {...props}><circle cx="12" cy="12" r="10" /><path d="M8 12l4 4 4-4M12 8v8" /></svg>)
+    case 'node-exit':
+      return (<svg {...props}><circle cx="12" cy="12" r="10" /><path d="M8 12l4-4 4 4M12 8v8" /></svg>)
+    case 'node-default':
+      return (<svg {...props}><circle cx="12" cy="12" r="8" /><path d="M12 8v8M8 12h8" /></svg>)
+    case 'branch-true':
+      return (<svg {...props}><path d="M20 6L9 17l-5-5" /></svg>)
+    case 'branch-false':
+      return (<svg {...props}><path d="M18 6L6 18M6 6l12 12" /></svg>)
     default:
       return null
   }
