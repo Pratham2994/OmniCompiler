@@ -33,6 +33,9 @@ const defaultFiles = [
   { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
 
+const TREE_DEFAULT_MESSAGE = 'Tree not generated yet. Use "Generate Tree" when you are ready.'
+const TREE_LANG_MESSAGE = 'Select or detect a language before generating a tree.'
+
 // Ephemeral autosave (10 minutes TTL) — same snapshot as Run
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
@@ -562,12 +565,31 @@ export default function Debug() {
       return Array.isArray(arr) ? arr.slice(0, 128) : []
     } catch { return [] }
   })
+  const [treeNodes, setTreeNodes] = useState([])
+  const [treeStatus, setTreeStatus] = useState('idle') // 'idle' | 'loading' | 'error' | 'ready' | 'empty'
+  const [treeMessage, setTreeMessage] = useState(
+    effectiveLanguage === 'plaintext' ? TREE_LANG_MESSAGE : TREE_DEFAULT_MESSAGE
+  )
+  const [treeBusy, setTreeBusy] = useState(false)
+  const [treeWarnings, setTreeWarnings] = useState([])
+  const [fileExpanded, setFileExpanded] = useState({})
+  const [nodeExpanded, setNodeExpanded] = useState({})
 
   useEffect(() => {
     try {
       localStorage.setItem(BP_LS_KEY, JSON.stringify(breakpoints))
     } catch {}
   }, [breakpoints])
+
+  useEffect(() => {
+    setTreeNodes([])
+    setTreeStatus('idle')
+    setTreeBusy(false)
+    setTreeMessage(effectiveLanguage === 'plaintext' ? TREE_LANG_MESSAGE : TREE_DEFAULT_MESSAGE)
+    setTreeWarnings([])
+    setFileExpanded({})
+    setNodeExpanded({})
+  }, [effectiveLanguage])
 
   const addBreakpointAtCursor = () => {
     if (!activeFileId || !activeFile) return
@@ -693,7 +715,7 @@ export default function Debug() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetect, monacoReady, activeFileId])
 
-  // Build a live code tree from the active file content
+  // Code tree helpers (manual generation from the active file)
   function jumpToLine(ln) {
     try {
       const ed = editorRef.current
@@ -703,6 +725,131 @@ export default function Debug() {
       ed.setPosition({ lineNumber, column: 1 })
       ed.focus()
     } catch {}
+  }
+
+  function findFileIdForName(fullName = '') {
+    const target = String(fullName || '').toLowerCase()
+    const entryLang = getEffectiveLanguage(activeFileId) || 'plaintext'
+    for (const f of files) {
+      const withExt = nameWithExt(f, entryLang).toLowerCase()
+      if (withExt === target || stripExtension(withExt) === stripExtension(target)) {
+        return f.id
+      }
+    }
+    return null
+  }
+
+  function jumpToFileAndLine(fileName, ln) {
+    const targetId = findFileIdForName(fileName)
+    if (targetId && targetId !== activeFileId) {
+      setActiveFileId(targetId)
+      setTimeout(() => jumpToLine(ln), 40)
+    } else {
+      jumpToLine(ln)
+    }
+  }
+
+  const materializeCfgTree = (nodes = []) => {
+    const byId = new Map()
+    nodes.forEach(n => {
+      byId.set(n.id, { ...n, children: [] })
+    })
+    nodes.forEach(n => {
+      const parent = byId.get(n.id)
+      if (!parent) return
+      (n.children || []).forEach(cid => {
+        const child = byId.get(cid)
+        if (child) parent.children.push(child)
+      })
+    })
+    const hasParent = new Set()
+    nodes.forEach(n => (n.children || []).forEach(cid => hasParent.add(cid)))
+
+    const filesMap = new Map()
+    byId.forEach(node => {
+      const fname = node.file || 'unknown'
+      if (!filesMap.has(fname)) filesMap.set(fname, { file: fname, nodes: [] })
+    })
+    byId.forEach(node => {
+      const fname = node.file || 'unknown'
+      if (!hasParent.has(node.id)) {
+        const bucket = filesMap.get(fname)
+        if (bucket) bucket.nodes.push(node)
+      }
+    })
+    return Array.from(filesMap.values())
+      .map(g => ({
+        ...g,
+        nodes: (g.nodes || []).sort((a, b) => (a.start_line || 0) - (b.start_line || 0)),
+      }))
+      .sort((a, b) => a.file.localeCompare(b.file))
+  }
+
+  const generateTree = async () => {
+    const langId = (effectiveLanguage || '').toLowerCase()
+    if (!activeFileId || !activeFile) {
+      setTreeStatus('error')
+      setTreeNodes([])
+      setTreeMessage('Add a file before generating a tree.')
+      return
+    }
+    if (!langId || langId === 'plaintext') {
+      setTreeStatus('error')
+      setTreeNodes([])
+      setTreeMessage(TREE_LANG_MESSAGE)
+      return
+    }
+    const src = getActiveCode()
+    if (!src.trim()) {
+      setTreeStatus('error')
+      setTreeNodes([])
+      setTreeMessage('Add some code to the active file before generating a tree.')
+      return
+    }
+
+    setTreeBusy(true)
+    setTreeWarnings([])
+    setTreeStatus('loading')
+    setTreeMessage('Generating tree from backend...')
+    try {
+      const body = buildCfgRequest()
+      const res = await fetch(`${apiBase}/cfg`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      if (!data || !Array.isArray(data.nodes)) {
+        throw new Error('Malformed /cfg response')
+      }
+
+      const tree = materializeCfgTree(data.nodes || [])
+      setTreeNodes(tree)
+      setFileExpanded(tree.reduce((acc, g) => ({ ...acc, [g.file]: true }), {}))
+      setNodeExpanded({})
+      setTreeWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+
+      if (!tree.length || tree.every(g => !g.nodes || g.nodes.length === 0)) {
+        setTreeStatus('empty')
+        setTreeMessage(`No symbols found in ${activeFile.name}.${extForLang(langId)}. Add functions or classes, then try again.`)
+      } else {
+        setTreeStatus('ready')
+        const langLabel = languageLabel(langId)
+        const entryName = data.entry || `${activeFile.name}.${extForLang(langId)}`
+        setTreeMessage(`Generated (${langLabel}) for ${entryName}. Click a node to jump to its file and line.`)
+      }
+    } catch (err) {
+      setTreeStatus('error')
+      setTreeNodes([])
+      setTreeWarnings([])
+      setTreeMessage(err?.message ? `Tree error: ${err.message}` : 'Failed to build the tree.')
+    } finally {
+      setTreeBusy(false)
+    }
   }
 
   function parseCodeTree(lang, code) {
@@ -871,37 +1018,37 @@ export default function Debug() {
     }
   }
 
-  const buildDebugRunRequest = () => {
+  const getLiveContent = (file) => {
+    const m = modelsRef.current.get(file.id)
+    if (m && typeof m.getValue === 'function') {
+      return String(m.getValue() ?? '')
+    }
+    return String(file.content ?? '')
+  }
+
+  const nameWithExt = (f, fallbackLang) => {
+    const fl = getEffectiveLanguage(f.id) || fallbackLang || 'plaintext'
+    const ext = extForLang(fl)
+    return ext ? `${f.name}.${ext}` : f.name
+  }
+
+  const buildCfgRequest = () => {
     const entryId = activeFileId
     const entryFile = files.find(f => f.id === entryId) || activeFile
     const entryLang = getEffectiveLanguage(entryId) || 'plaintext'
 
-    const getLiveContent = (file) => {
-      const m = modelsRef.current.get(file.id)
-      if (m && typeof m.getValue === 'function') {
-        return String(m.getValue() ?? '')
-      }
-      return String(file.content ?? '')
-    }
-
-    const nameWithExt = (f) => {
-      const fl = getEffectiveLanguage(f.id) || entryLang
-      const ext = extForLang(fl)
-      return ext ? `${f.name}.${ext}` : f.name
-    }
-
-    const entry = nameWithExt(entryFile)
+    const entry = nameWithExt(entryFile, entryLang)
     const payloadFiles = files.map(f => ({
-      name: nameWithExt(f),
+      name: nameWithExt(f, entryLang),
       content: getLiveContent(f),
     }))
 
-    return {
-      lang: entryLang,
-      entry,
-      args: [],
-      files: payloadFiles,
-    }
+    return { lang: entryLang, entry, files: payloadFiles }
+  }
+
+  const buildDebugRunRequest = () => {
+    const cfg = buildCfgRequest()
+    return { ...cfg, args: [] }
   }
 
   function stopDebugSession() {
@@ -1066,34 +1213,107 @@ export default function Debug() {
     return String(activeFile?.content || '')
   }
 
-  function renderTree(nodes, depth = 0) {
-    return (nodes || []).map((n, idx) => (
-      <li key={`${n.name}:${n.line}:${depth}:${idx}`} className="px-2 py-1 rounded hover:bg-[var(--oc-surface)]">
-        <button className="w-full text-left flex items-center justify-between" onClick={() => jumpToLine(n.line)}>
-          <span className="truncate flex items-center gap-2">
-            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-[var(--oc-surface)] border border-[var(--oc-border)] uppercase tracking-wide">
-              {n.type}
-            </span>
-            <span className="font-medium">{n.name}</span>
-          </span>
-          <span className="opacity-70 text-xs">:{n.line}</span>
-        </button>
-        {n.children && n.children.length > 0 ? (
-          <ul className="ml-4 mt-1 border-l border-[var(--oc-border)] pl-2 space-y-1">
-            {renderTree(n.children, depth + 1)}
-          </ul>
-        ) : null}
-      </li>
-    ))
+  const typeColor = (t) => {
+    switch (String(t || '').toLowerCase()) {
+      case 'function': return 'var(--oc-primary-400)'
+      case 'class': return '#eab308' // amber
+      case 'method': return '#22d3ee' // cyan
+      case 'if': return '#f97316' // orange
+      case 'for':
+      case 'while': return '#a855f7' // purple
+      case 'stmt': return '#6b7280' // gray
+      default: return 'var(--oc-primary-500)'
+    }
   }
 
-  const codeTree = useMemo(() => {
-    const lang = effectiveLanguage || 'plaintext'
-    if (lang === 'plaintext') return []
-    const src = getActiveCode()
-    return parseCodeTree(lang, src)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFileId, effectiveLanguage, files])
+  const typeLegend = [
+    { label: 'Function', type: 'function' },
+    { label: 'Class', type: 'class' },
+    { label: 'Method', type: 'method' },
+    { label: 'If/Else', type: 'if' },
+    { label: 'Loop', type: 'for' },
+    { label: 'Statement', type: 'stmt' },
+  ]
+
+  const toggleNodeExpanded = (id) => {
+    setNodeExpanded(prev => ({ ...prev, [id]: !(prev[id] ?? true) }))
+  }
+
+  const toggleFileExpanded = (fileName) => {
+    setFileExpanded(prev => ({ ...prev, [fileName]: !(prev[fileName] ?? true) }))
+  }
+
+  function renderTree(nodes, depth = 0) {
+    return (nodes || []).map((n, idx) => {
+      const hasChildren = n.children && n.children.length > 0
+      const expanded = nodeExpanded[n.id] ?? true
+      const lineLabel = (n.start_line === n.end_line || !n.end_line)
+        ? `:${n.start_line}`
+        : `:${n.start_line}-${n.end_line}`
+      return (
+        <li
+          key={`${n.id}:${depth}:${idx}`}
+          className="oc-cfg-item"
+          style={{ marginLeft: depth ? depth * 6 : 0 }}
+        >
+          <div className="oc-cfg-row">
+            {hasChildren ? (
+              <button
+                className="oc-cfg-toggle"
+                onClick={() => toggleNodeExpanded(n.id)}
+                aria-label={expanded ? 'Collapse node' : 'Expand node'}
+              >
+                <Icon
+                  name="chevron-right"
+                  className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <span
+                className="oc-cfg-dot"
+                aria-hidden="true"
+                style={{ background: typeColor(n.type) }}
+              />
+            )}
+            <div className="oc-cfg-arrow" aria-hidden="true" />
+            <button
+              className="oc-cfg-node"
+              style={{ borderColor: typeColor(n.type), boxShadow: `0 10px 30px ${typeColor(n.type)}22` }}
+              onClick={() => jumpToFileAndLine(n.file, n.start_line)}
+              aria-label={`Jump to ${n.file || 'file'} ${lineLabel}`}
+            >
+              <div className="oc-cfg-node-top">
+                <span
+                  className="oc-cfg-pill"
+                  style={{ background: `${typeColor(n.type)}22`, color: typeColor(n.type), borderColor: typeColor(n.type) }}
+                >
+                  {n.type || 'node'}
+                </span>
+                <span className="oc-cfg-title">{n.label || n.name || '(unnamed)'}</span>
+                <span className="oc-cfg-lines">{lineLabel}</span>
+              </div>
+              {n.file ? (
+                <div className="oc-cfg-meta">File: {n.file}</div>
+              ) : null}
+            </button>
+          </div>
+          <AnimatePresence initial={false}>
+            {hasChildren && expanded && (
+              <motion.ul
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.18 }}
+                className="oc-cfg-branch space-y-2"
+              >
+                {renderTree(n.children, depth + 1)}
+              </motion.ul>
+            )}
+          </AnimatePresence>
+        </li>
+      )
+    })
+  }
 
   return (
     <div className="h-screen w-screen">
@@ -1545,19 +1765,89 @@ export default function Debug() {
                   )}
 
                   {debugTab === 'tree' && (
-                    <div className="flex-1 min-h-0 bg-[var(--oc-surface-2)] rounded p-2 text-sm" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
-                      <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)] mb-2">Code Tree</div>
+                    <div className="flex-1 min-h-0 bg-[var(--oc-surface-2)] rounded p-2 text-sm overflow-hidden" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Code Tree</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-[var(--oc-muted)]">
+                            Lang: {effectiveLanguage === 'plaintext' ? 'Not set' : languageLabel(effectiveLanguage)}
+                          </div>
+                          <button
+                            className="oc-btn"
+                            onClick={generateTree}
+                            disabled={treeBusy}
+                            aria-label="Generate code tree"
+                            title="Generate code tree"
+                          >
+                            {treeBusy ? 'Generating Tree...' : 'Generate Tree'}
+                          </button>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-medium mb-3 ${treeStatus === 'error' ? 'text-[var(--oc-danger)]' : 'text-[var(--oc-muted)]'}`}>
+                        {treeMessage}
+                      </div>
+                      {treeWarnings.length > 0 && (
+                        <div className="text-xs text-[var(--oc-primary-300)] mb-3 space-y-1">
+                          {treeWarnings.map((w, i) => <div key={`warn-${i}`}>⚠ {w}</div>)}
+                        </div>
+                      )}
                       {effectiveLanguage === 'plaintext' ? (
-                        <div className="text-[var(--oc-muted)]">Select a programming language to enable the code tree.</div>
+                        <div className="text-[var(--oc-muted)]">Tree output will appear here after generation.</div>
                       ) : (
                         <>
-                          {codeTree.length === 0 ? (
-                            <div className="text-[var(--oc-muted)]">No symbols detected. The tree updates live as you type.</div>
-                          ) : (
-                            <ul className="space-y-1">
-                              {renderTree(codeTree)}
-                            </ul>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--oc-muted)] mb-2">
+                            {typeLegend.map((t) => (
+                              <span key={t.type} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--oc-surface-2)] border border-[var(--oc-border)]">
+                                <span className="inline-block w-3 h-3 rounded-full" style={{ background: typeColor(t.type) }} />
+                                <span>{t.label}</span>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex-1 min-h-0 overflow-auto pr-1 pb-6">
+                            {treeNodes.length > 0 ? (
+                              <div className="space-y-2">
+                                {treeNodes.map(group => {
+                                  const expanded = fileExpanded[group.file] ?? true
+                                  return (
+                                    <div key={group.file} className="rounded border border-[var(--oc-border)] bg-[var(--oc-surface)]">
+                                      <button
+                                        className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-[var(--oc-surface-2)]"
+                                        onClick={() => toggleFileExpanded(group.file)}
+                                        aria-expanded={expanded ? 'true' : 'false'}
+                                      >
+                                        <span className="flex items-center gap-2 truncate">
+                                          <Icon
+                                            name="chevron-right"
+                                            className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                                          />
+                                          <span className="font-semibold truncate">{group.file}</span>
+                                        </span>
+                                        <span className="text-xs text-[var(--oc-muted)]">
+                                          {group.nodes?.length || 0} root node{(group.nodes?.length || 0) === 1 ? '' : 's'}
+                                        </span>
+                                      </button>
+                                      <AnimatePresence initial={false}>
+                                        {expanded && (
+                                          <motion.ul
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="p-2 space-y-1"
+                                            style={{ maxHeight: '60vh', overflow: 'auto' }}
+                                          >
+                                            {renderTree(group.nodes, 0)}
+                                          </motion.ul>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-[var(--oc-muted)]">Run Generate Tree to visualize the control flow.</div>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
