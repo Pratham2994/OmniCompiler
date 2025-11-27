@@ -12,6 +12,7 @@ export const STEP_COLOR_MAP = {
   branch_true: 'var(--oc-trace-branch-true)',
   branch_false: 'var(--oc-trace-branch-false)',
   exception: 'var(--oc-trace-exception)',
+  import: 'var(--oc-trace-import)',
   default: 'var(--oc-trace-default)',
 }
 
@@ -43,6 +44,9 @@ export const getStepIcon = (type) => {
     case 'assign':
     case 'expression':
     case 'stmt': return 'node-stmt'
+    case 'import':
+    case 'import_usage':
+      return 'node-import'
     default: return 'node-default'
   }
 }
@@ -59,6 +63,7 @@ export const canonicalStepType = (type = '') => {
   if (t === 'branch_true' || t === 'branch-true') return 'branch_true'
   if (t === 'branch_false' || t === 'branch-false') return 'branch_false'
   if (['try', 'catch', 'except', 'finally'].includes(t)) return 'exception'
+  if (['import', 'import_usage', 'from_import'].includes(t)) return 'import'
   return 'statement'
 }
 

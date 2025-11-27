@@ -38,6 +38,7 @@
   --oc-trace-branch-true: #16a34a;
   --oc-trace-branch-false: #dc2626;
   --oc-trace-exception: #f43f5e;
+  --oc-trace-import: #0ea5e9;
   --oc-trace-default: #8b5cf6;
 }
 
@@ -75,6 +76,7 @@
   --oc-trace-branch-true: #4ade80;
   --oc-trace-branch-false: #f87171;
   --oc-trace-exception: #fb7185;
+  --oc-trace-import: #67e8f9;
   --oc-trace-default: #a78bfa;
 }
 
@@ -118,6 +120,7 @@
   --oc-trace-branch-true: #00ff5f;
   --oc-trace-branch-false: #ff4d4d;
   --oc-trace-exception: #ff66ff;
+  --oc-trace-import: #00a3ff;
   --oc-trace-default: #f5d90a;
 }
 
@@ -997,12 +1000,38 @@ html, body, #root {
   color: #000;
 }
 
+.oc-exec-step-badge-import {
+  background: color-mix(in srgb, var(--oc-trace-import) 85%, var(--oc-surface));
+  color: var(--oc-on-primary);
+  border: 1px solid color-mix(in srgb, var(--oc-trace-import) 55%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.oc-exec-step-badge-import-usage {
+  background: color-mix(in srgb, var(--oc-trace-import) 25%, transparent);
+  color: var(--oc-trace-import);
+  border: 1px dashed color-mix(in srgb, var(--oc-trace-import) 55%, transparent);
+}
+
 /* Location (file:line) */
 .oc-exec-step-loc {
   font-size: 11px;
   color: var(--oc-muted);
   font-family: ui-monospace, monospace;
   margin-left: auto;
+}
+
+.oc-exec-step-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--oc-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--oc-trace-import) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--oc-trace-import) 25%, transparent);
 }
 
 /* Code preview */

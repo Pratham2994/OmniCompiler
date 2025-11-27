@@ -9,6 +9,7 @@ export const typeColor = (t) => {
     case 'for':
     case 'while': return '#a855f7'
     case 'stmt': return '#6b7280'
+    case 'import': return 'var(--oc-trace-import)'
     default: return 'var(--oc-primary-500)'
   }
 }
@@ -19,6 +20,7 @@ export const typeLegend = [
   { label: 'Method', type: 'method' },
   { label: 'If/Else', type: 'if' },
   { label: 'Loop', type: 'for' },
+  { label: 'Import', type: 'import' },
   { label: 'Statement', type: 'stmt' },
 ]
 
@@ -58,7 +60,7 @@ export const materializeCfgTree = (nodes = []) => {
     .sort((a, b) => a.file.localeCompare(b.file))
 }
 
-export const buildExecutionTrace = (cfgGroups = [], filesContent = []) => {
+export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint = 'plaintext') => {
   let stepId = 0
 
   const indexedFiles = filesContent.map(f => ({
@@ -74,6 +76,191 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = []) => {
       f.__keys.loweredBase === keys.loweredBase ||
       f.__keys.loweredBaseNoExt === keys.loweredBaseNoExt
     ))
+  }
+
+  const findFileForModule = (moduleName) => {
+    if (!moduleName) return null
+    const normalized = String(moduleName).replace(/\\./g, '/').split('/').pop()
+    if (!normalized) return null
+    const lowered = normalized.toLowerCase()
+    return indexedFiles.find(f => f.__keys.loweredBaseNoExt === lowered) || null
+  }
+
+  const inferLanguageFromFileName = (fileName = '', fallback = 'plaintext') => {
+    const lower = String(fileName || '').toLowerCase()
+    if (lower.endsWith('.py')) return 'python'
+    if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.ts') || lower.endsWith('.tsx')) return 'javascript'
+    if (lower.endsWith('.java')) return 'java'
+    if (lower.endsWith('.go')) return 'go'
+    if (lower.endsWith('.cpp') || lower.endsWith('.hpp') || lower.endsWith('.cc')) return 'cpp'
+    return fallback
+  }
+
+  const valueForLine = (step) => {
+    if (step?.isEntry) return 0
+    if (step?.isExit) return Number.POSITIVE_INFINITY
+    return typeof step?.line === 'number' ? step.line : Number.POSITIVE_INFINITY
+  }
+
+  const insertStepByLine = (steps, step) => {
+    for (let i = 0; i < steps.length; i += 1) {
+      const existing = steps[i]
+      if (existing.file !== step.file) continue
+      if (valueForLine(existing) > valueForLine(step)) {
+        return [...steps.slice(0, i), step, ...steps.slice(i)]
+      }
+    }
+    const lastIndex = [...steps].reverse().findIndex(s => s.file === step.file)
+    if (lastIndex === -1) return [...steps, step]
+    const insertIndex = steps.length - lastIndex
+    return [...steps.slice(0, insertIndex), step, ...steps.slice(insertIndex)]
+  }
+
+  const findPythonSymbolLine = (fileEntry, symbolName) => {
+    if (!fileEntry) return 1
+    const lines = (fileEntry.content || '').split(/\r?\n/)
+    const regex = new RegExp(`^\\s*(?:async\\s+)?(def|class)\\s+${symbolName}\\b`)
+    for (let i = 0; i < lines.length; i += 1) {
+      if (regex.test(lines[i])) return i + 1
+    }
+    return 1
+  }
+
+  const buildPythonImportAnnotations = (fileName) => {
+    const src = resolveFileData(fileName)
+    if (!src) return []
+    const lines = (src.content || '').split(/\r?\n/)
+    const annotations = []
+    const moduleEntries = []
+    const directEntries = []
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) return
+
+      const importMatch = trimmed.match(/^import\s+([A-Za-z0-9_\.]+)(?:\s+as\s+([A-Za-z0-9_]+))?/i)
+      if (importMatch) {
+        const module = importMatch[1]
+        const alias = importMatch[2] || module.split('.').slice(-1)[0]
+        const targetFileEntry = findFileForModule(module)
+        const targetFileName = targetFileEntry?.name || null
+        const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : module
+        annotations.push({
+          type: 'import',
+          module,
+          alias,
+          line: idx + 1,
+          code: trimmed,
+          targetFileName,
+          targetFileLabel,
+          jumpLine: targetFileEntry ? 1 : idx + 1,
+        })
+        moduleEntries.push({
+          alias,
+          module,
+          targetFileEntry,
+          targetFileName,
+          targetFileLabel,
+          declarationLine: idx + 1,
+        })
+        return
+      }
+
+      const fromMatch = trimmed.match(/^from\s+([A-Za-z0-9_\.]+)\s+import\s+(.+)/i)
+      if (fromMatch) {
+        const module = fromMatch[1]
+        const membersPart = fromMatch[2].split('#')[0]
+        const targetFileEntry = findFileForModule(module)
+        const targetFileName = targetFileEntry?.name || null
+        const targetFileLabel = targetFileName ? formatFileLabel(targetFileName) : module
+        annotations.push({
+          type: 'import',
+          module,
+          alias: null,
+          line: idx + 1,
+          code: trimmed,
+          targetFileName,
+          targetFileLabel,
+          jumpLine: targetFileEntry ? 1 : idx + 1,
+        })
+
+        membersPart.split(',').forEach(raw => {
+          const segment = raw.trim()
+          if (!segment) return
+          const parts = segment.split(/\s+as\s+/i)
+          const memberName = parts[0].trim()
+          const alias = (parts[1] || parts[0]).trim()
+          if (!alias) return
+          directEntries.push({
+            alias,
+            module,
+            member: memberName,
+            targetFileEntry,
+            targetFileName,
+            targetFileLabel,
+            declarationLine: idx + 1,
+          })
+        })
+      }
+    })
+
+    const seenUsage = new Set()
+    lines.forEach((line, idx) => {
+      moduleEntries.forEach(entry => {
+        if (idx + 1 === entry.declarationLine) return
+        const regex = new RegExp(`\\b${entry.alias}\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)`, 'g')
+        let match
+        while ((match = regex.exec(line))) {
+          const memberName = match[1]
+          const key = `${idx}-${entry.alias}-${memberName}`
+          if (seenUsage.has(key)) continue
+          seenUsage.add(key)
+          annotations.push({
+            type: 'import_usage',
+            module: entry.module,
+            alias: entry.alias,
+            member: memberName,
+            line: idx + 1,
+            code: line.trim(),
+            targetFileName: entry.targetFileName,
+            targetFileLabel: entry.targetFileLabel,
+            jumpLine: findPythonSymbolLine(entry.targetFileEntry, memberName),
+          })
+        }
+      })
+
+      directEntries.forEach(entry => {
+        if (idx + 1 === entry.declarationLine) return
+        const callRegex = new RegExp(`\\b${entry.alias}\\s*\\(`)
+        if (!callRegex.test(line)) return
+        const trimmed = line.trim()
+        if (trimmed.startsWith(`def ${entry.alias}`) || trimmed.startsWith(`class ${entry.alias}`)) return
+        const key = `${idx}-${entry.alias}-direct`
+        if (seenUsage.has(key)) return
+        seenUsage.add(key)
+        annotations.push({
+          type: 'import_usage',
+          module: entry.module,
+          alias: entry.alias,
+          member: entry.member,
+          line: idx + 1,
+          code: trimmed,
+          targetFileName: entry.targetFileName,
+          targetFileLabel: entry.targetFileLabel,
+          jumpLine: findPythonSymbolLine(entry.targetFileEntry, entry.member),
+        })
+      })
+    })
+
+    return annotations
+  }
+
+  const detectImportAnnotationsForFile = (fileName) => {
+    const lang = inferLanguageFromFileName(fileName, langHint)
+    if (lang === 'python') {
+      return buildPythonImportAnnotations(fileName)
+    }
+    return []
   }
 
   const readCodeLine = (fileName, lineNum) => {
@@ -211,6 +398,31 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = []) => {
       isExit: true,
       isLoop: false,
     })]
+
+    const importAnnotations = detectImportAnnotationsForFile(group.file)
+    importAnnotations.forEach(annotation => {
+      const jumpFile = annotation.targetFileName || group.file
+      const jumpLine = annotation.targetFileName ? annotation.jumpLine : annotation.line
+      const step = makeStep({
+        type: annotation.type,
+        kind: 'import',
+        line: annotation.line,
+        file: group.file,
+        fileLabel,
+        code: annotation.code,
+        depth: 0,
+        func: null,
+        isImport: annotation.type === 'import',
+        isImportUsage: annotation.type === 'import_usage',
+        importModule: annotation.module,
+        importAlias: annotation.alias,
+        importMember: annotation.member,
+        targetFileLabel: annotation.targetFileLabel,
+        jumpFile,
+        jumpLine,
+      })
+      stepsForFile = insertStepByLine(stepsForFile, step)
+    })
 
     return stepsForFile
   })

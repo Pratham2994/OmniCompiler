@@ -11,7 +11,28 @@ import {
 } from './traceUtils.js'
 
 const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, totalSteps }) => {
-  const { type, line, file, fileLabel, code, depth, func, isCall, isReturn, kind, isLoop, isEntry, isExit, isBranch } = step
+  const {
+    type,
+    line,
+    file,
+    fileLabel,
+    code,
+    depth,
+    func,
+    isCall,
+    isReturn,
+    kind,
+    isLoop,
+    isEntry,
+    isExit,
+    isBranch,
+    isImport,
+    isImportUsage,
+    importModule,
+    importAlias,
+    importMember,
+    targetFileLabel,
+  } = step
   const iconName = getStepIcon(type)
   const normalizedType = kind || canonicalStepType(type)
   const color = getStepColor(normalizedType)
@@ -21,6 +42,8 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
   const locationTitle = file || fileLabel || displayFile || ''
   const funcLabel = formatStepFunctionLabel(func)
   const showFuncLabel = funcLabel && funcLabel !== '<module>'
+  const importLabel = importAlias || importModule
+  const usageLabel = importAlias ? `${importAlias}${importMember ? `.${importMember}` : ''}` : (importMember || importModule)
   
   return (
     <motion.div
@@ -34,6 +57,8 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
       data-exit={isExit ? 'true' : undefined}
       data-branch={isBranch ? 'true' : undefined}
       data-loop={loopStep ? 'true' : undefined}
+      data-import={isImport ? 'true' : undefined}
+      data-import-usage={isImportUsage ? 'true' : undefined}
     >
       {/* Vertical connector line */}
       {index < totalSteps - 1 && (
@@ -76,10 +101,26 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
                 <Icon name="arrow-left" className="size-2.5" /> RETURN
               </span>
             )}
+            {isImport && importLabel && (
+              <span className="oc-exec-step-badge oc-exec-step-badge-import">
+                <Icon name="node-import" className="size-2.5" /> {importLabel}
+              </span>
+            )}
+            {isImportUsage && usageLabel && (
+              <span className="oc-exec-step-badge oc-exec-step-badge-import-usage">
+                <Icon name="node-import" className="size-2.5" /> {usageLabel}
+              </span>
+            )}
             <span className="oc-exec-step-loc" title={locationTitle || undefined}>
               {displayFile && <span className="opacity-70">{displayFile}:</span>}
               <span className="font-semibold">L{line}</span>
             </span>
+            {(isImport || isImportUsage) && targetFileLabel && (
+              <span className="oc-exec-step-target">
+                <Icon name="chevron-right" className="size-3" />
+                <span>{targetFileLabel}</span>
+              </span>
+            )}
           </div>
           
           {/* Code preview */}

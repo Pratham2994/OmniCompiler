@@ -131,7 +131,7 @@ export default function useExecutionTrace({
         content: getLiveContent(f),
       }))
 
-      const trace = buildExecutionTrace(cfgGroups, filesContent)
+      const trace = buildExecutionTrace(cfgGroups, filesContent, langId)
       setExecutionTrace(trace)
       setCurrentStepIndex(-1)
 
@@ -155,8 +155,10 @@ export default function useExecutionTrace({
 
   const handleStepClick = (step, index) => {
     setCurrentStepIndex(index)
-    if (step?.file && step?.line && step.line > 0) {
-      jumpToFileAndLine(step.file, step.line)
+    const targetFile = step?.jumpFile || step?.file
+    const targetLine = step?.jumpLine || step?.line
+    if (targetFile && targetLine && targetLine > 0) {
+      jumpToFileAndLine(targetFile, targetLine)
     }
   }
 

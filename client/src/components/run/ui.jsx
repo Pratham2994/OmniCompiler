@@ -75,6 +75,15 @@ export function Icon({ name, className = 'size-4', strokeWidth = 2, label }) {
       return (<svg {...props}><path d="M12 3l9 9-9 9-9-9 9-9z" /><path d="M12 8v4M12 14v2" /></svg>)
     case 'node-loop':
       return (<svg {...props}><circle cx="12" cy="12" r="9" /><path d="M12 6v2M12 16v2M6 12h2M16 12h2" /><path d="M9 9l3 3 3-3" /></svg>)
+    case 'node-import':
+      return (
+        <svg {...props}>
+          <rect x="4" y="4" width="16" height="16" rx="2" opacity=".2" />
+          <path d="M12 3v10" />
+          <path d="M8 11l4 4 4-4" />
+          <path d="M6 19h12" />
+        </svg>
+      )
     case 'node-stmt':
       return (<svg {...props}><rect x="4" y="6" width="16" height="12" rx="2" /><path d="M8 10h8M8 14h5" /></svg>)
     case 'node-return':
