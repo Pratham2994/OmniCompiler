@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useRef } from 'react'
+import { motion } from 'framer-motion'
 import { Icon } from '../../components/run/ui.jsx'
+import ExecutionStepNode from './ExecutionStepNode.jsx'
 
 export default function DebugPanel({
   workspaceW,
@@ -18,15 +19,16 @@ export default function DebugPanel({
   removeBreakpoint,
   effectiveLanguage,
   languageLabel,
-  generateTree,
-  treeNodes,
-  treeBusy,
-  treeStatus,
-  treeMessage,
-  treeWarnings,
+  generateTrace,
+  traceBusy,
+  traceStatus,
+  traceMessage,
+  traceWarnings,
   typeLegend,
   typeColor,
-  jumpToFileAndLine,
+  executionTrace,
+  currentStepIndex,
+  onTraceStepClick,
   outputLog,
   onClearOutput,
   stdinLine,
@@ -34,92 +36,53 @@ export default function DebugPanel({
   sendStdin,
   waitingForInput,
 }) {
-  const [fileExpanded, setFileExpanded] = useState({})
-  const [nodeExpanded, setNodeExpanded] = useState({})
+  const traceScrollRef = useRef(null)
 
-  useEffect(() => {
-    setFileExpanded((treeNodes || []).reduce((acc, g) => ({ ...acc, [g.file]: true }), {}))
-    setNodeExpanded({})
-  }, [treeNodes])
-
-  const toggleNodeExpanded = (id) => {
-    setNodeExpanded(prev => ({ ...prev, [id]: !(prev[id] ?? true) }))
-  }
-
-  const toggleFileExpanded = (fileName) => {
-    setFileExpanded(prev => ({ ...prev, [fileName]: !(prev[fileName] ?? true) }))
-  }
-
-  const renderTree = (nodes, depth = 0) => {
-    return (nodes || []).map((n, idx) => {
-      const hasChildren = n.children && n.children.length > 0
-      const expanded = nodeExpanded[n.id] ?? true
-      const lineLabel = (n.start_line === n.end_line || !n.end_line)
-        ? `:${n.start_line}`
-        : `:${n.start_line}-${n.end_line}`
+  const renderTraceBody = () => {
+    if (effectiveLanguage === 'plaintext') {
       return (
-        <li
-          key={`${n.id}:${depth}:${idx}`}
-          className="oc-cfg-item"
-          style={{ marginLeft: depth ? depth * 6 : 0 }}
-        >
-          <div className="oc-cfg-row">
-            {hasChildren ? (
-              <button
-                className="oc-cfg-toggle"
-                onClick={() => toggleNodeExpanded(n.id)}
-                aria-label={expanded ? 'Collapse node' : 'Expand node'}
-              >
-                <Icon
-                  name="chevron-right"
-                  className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
-                />
-              </button>
-            ) : (
-              <span
-                className="oc-cfg-dot"
-                aria-hidden="true"
-                style={{ background: typeColor(n.type) }}
-              />
-            )}
-            <div className="oc-cfg-arrow" aria-hidden="true" />
-            <button
-              className="oc-cfg-node"
-              style={{ borderColor: typeColor(n.type), boxShadow: `0 10px 30px ${typeColor(n.type)}22` }}
-              onClick={() => jumpToFileAndLine(n.file, n.start_line)}
-              aria-label={`Jump to ${n.file || 'file'} ${lineLabel}`}
-            >
-              <div className="oc-cfg-node-top">
-                <span
-                  className="oc-cfg-pill"
-                  style={{ background: `${typeColor(n.type)}22`, color: typeColor(n.type), borderColor: typeColor(n.type) }}
-                >
-                  {n.type || 'node'}
-                </span>
-                <span className="oc-cfg-title">{n.label || n.name || '(unnamed)'}</span>
-                <span className="oc-cfg-lines">{lineLabel}</span>
-              </div>
-              {n.file ? (
-                <div className="oc-cfg-meta">File: {n.file}</div>
-              ) : null}
-            </button>
-          </div>
-          <AnimatePresence initial={false}>
-            {hasChildren && expanded && (
-              <motion.ul
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.18 }}
-                className="oc-cfg-branch space-y-2"
-              >
-                {renderTree(n.children, depth + 1)}
-              </motion.ul>
-            )}
-          </AnimatePresence>
-        </li>
+        <div className="text-[var(--oc-muted)]">
+          Select or detect a language to generate the execution trace.
+        </div>
       )
-    })
+    }
+
+    if (!executionTrace || executionTrace.length === 0) {
+      return (
+        <div className="oc-exec-empty">
+          <Icon name="node-default" className="size-12 opacity-30 mb-3" />
+          <p>No execution trace generated yet.</p>
+          <p className="text-xs opacity-70">Click "Generate Trace" to analyze your code.</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="oc-exec-trace" ref={traceScrollRef}>
+        <div className="oc-exec-trace-header">
+          <div className="flex items-center gap-2">
+            <Icon name="play" className="size-4" />
+            <span className="font-semibold">Execution Flow</span>
+          </div>
+          <span className="oc-exec-trace-count">
+            {executionTrace.length} step{executionTrace.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="oc-exec-trace-steps">
+          {executionTrace.map((step, index) => (
+            <ExecutionStepNode
+              key={step.id || `step-${index}`}
+              step={step}
+              index={index}
+              isActive={index <= currentStepIndex}
+              isCurrent={index === currentStepIndex}
+              totalSteps={executionTrace.length}
+              onClick={() => onTraceStepClick(step, index)}
+            />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -143,11 +106,11 @@ export default function DebugPanel({
           </button>
           <button
             role="tab"
-            aria-selected={debugTab === 'tree'}
-            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${debugTab === 'tree' ? 'bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] shadow-inner ring-1 ring-[var(--oc-border)]' : 'text-[var(--oc-muted)] hover:bg-[var(--oc-surface-2)]'}`}
-            onClick={() => setDebugTab('tree')}
+            aria-selected={debugTab === 'trace'}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${debugTab === 'trace' ? 'bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] shadow-inner ring-1 ring-[var(--oc-border)]' : 'text-[var(--oc-muted)] hover:bg-[var(--oc-surface-2)]'}`}
+            onClick={() => setDebugTab('trace')}
           >
-            Tree
+            Execution Trace
           </button>
           <button
             role="tab"
@@ -255,31 +218,31 @@ export default function DebugPanel({
           </div>
         )}
 
-        {debugTab === 'tree' && (
+        {debugTab === 'trace' && (
           <div className="flex-1 min-h-0 bg-[var(--oc-surface-2)] rounded p-2 text-sm overflow-hidden flex flex-col" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Code Tree</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Execution Trace</div>
               <div className="flex items-center gap-2">
                 <div className="text-xs text-[var(--oc-muted)]">
                   Lang: {effectiveLanguage === 'plaintext' ? 'Not set' : languageLabel(effectiveLanguage)}
                 </div>
                 <button
                   className="oc-btn"
-                  onClick={generateTree}
-                  disabled={treeBusy}
-                  aria-label="Generate code tree"
-                  title="Generate code tree"
+                  onClick={generateTrace}
+                  disabled={traceBusy}
+                  aria-label="Generate execution trace"
+                  title="Generate execution trace"
                 >
-                  {treeBusy ? 'Generating Tree...' : 'Generate Tree'}
+                  {traceBusy ? 'Analyzing...' : 'Generate Trace'}
                 </button>
               </div>
             </div>
-            <div className={`text-sm font-medium mb-3 ${treeStatus === 'error' ? 'text-[var(--oc-danger)]' : 'text-[var(--oc-muted)]'}`}>
-              {treeMessage}
+            <div className={`text-sm font-medium mb-3 ${traceStatus === 'error' ? 'text-[var(--oc-danger)]' : 'text-[var(--oc-muted)]'}`}>
+              {traceMessage}
             </div>
-            {treeWarnings.length > 0 && (
+            {traceWarnings.length > 0 && (
               <div className="text-xs text-[var(--oc-primary-300)] mb-3 space-y-1">
-                {treeWarnings.map((w, i) => <div key={'warn-' + i}>! {w}</div>)}
+                {traceWarnings.map((w, i) => <div key={`trace-warn-${i}`}>⚠ {w}</div>)}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--oc-muted)] mb-2">
@@ -291,51 +254,7 @@ export default function DebugPanel({
               ))}
             </div>
             <div className="flex-1 min-h-0 overflow-auto pr-1 pb-8">
-              {effectiveLanguage === 'plaintext' ? (
-                <div className="text-[var(--oc-muted)]">Tree output will appear here after generation.</div>
-              ) : treeNodes && treeNodes.length > 0 ? (
-                <div className="space-y-2">
-                  {treeNodes.map(group => {
-                    const expanded = fileExpanded[group.file] ?? true
-                    return (
-                      <div key={group.file} className="rounded border border-[var(--oc-border)] bg-[var(--oc-surface)]">
-                        <button
-                          className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-[var(--oc-surface-2)]"
-                          onClick={() => toggleFileExpanded(group.file)}
-                          aria-expanded={expanded ? 'true' : 'false'}
-                        >
-                          <span className="flex items-center gap-2 truncate">
-                            <Icon
-                              name="chevron-right"
-                              className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
-                            />
-                            <span className="font-semibold truncate">{group.file}</span>
-                          </span>
-                          <span className="text-xs text-[var(--oc-muted)]">
-                            {group.nodes?.length || 0} root node{(group.nodes?.length || 0) === 1 ? '' : 's'}
-                          </span>
-                        </button>
-                        <AnimatePresence initial={false}>
-                          {expanded && (
-                            <motion.ul
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="p-2 space-y-1"
-                              style={{ maxHeight: '60vh', overflow: 'auto' }}
-                            >
-                              {renderTree(group.nodes, 0)}
-                            </motion.ul>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="text-[var(--oc-muted)]">Run Generate Tree to visualize the control flow.</div>
-              )}
+              {renderTraceBody()}
             </div>
           </div>
         )}
@@ -403,4 +322,3 @@ export default function DebugPanel({
     </motion.section>
   )
 }
-

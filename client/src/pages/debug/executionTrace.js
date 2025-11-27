@@ -128,7 +128,7 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = []) => {
         isLoop: false,
       })
 
-      (node.children || []).forEach(child => {
+      ;(node.children || []).forEach(child => {
         result = [...result, ...processNode(child, depth + 1, node.label || node.name, resolvedFile || inheritedFile)]
       })
       return result
@@ -193,7 +193,7 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = []) => {
       isLoop: false,
     })]
 
-    (group.nodes || []).forEach(node => {
+    ;(group.nodes || []).forEach(node => {
       stepsForFile = [...stepsForFile, ...processNode(node, 0, null, group.file)]
     })
 

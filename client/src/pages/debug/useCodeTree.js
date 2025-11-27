@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { materializeCfgTree } from './executionTrace.js'
+import { buildExecutionTrace, materializeCfgTree } from './executionTrace.js'
 import { extForLang } from './parseTrees.js'
 import { normalizeFileReference } from './traceUtils.js'
 
-export default function useCodeTree({
+const TRACE_LANG_MESSAGE = 'Select or detect a language before generating an execution trace.'
+const TRACE_DEFAULT_MESSAGE = 'Execution trace not generated yet. Use "Generate Trace" when you are ready.'
+
+export default function useExecutionTrace({
   files,
   activeFile,
   activeFileId,
@@ -12,27 +15,27 @@ export default function useCodeTree({
   setActiveFileId,
   apiBase,
   getActiveCode,
-  languageLabel,
   buildCfgRequest,
   editorRef,
   nameWithExt,
+  getLiveContent,
 }) {
-  const [treeNodes, setTreeNodes] = useState([])
-  const [treeStatus, setTreeStatus] = useState('idle')
-  const [treeMessage, setTreeMessage] = useState(
-    effectiveLanguage === 'plaintext' ? 'Select or detect a language before generating a tree.' : 'Tree not generated yet. Use "Generate Tree" when you are ready.'
+  const [executionTrace, setExecutionTrace] = useState([])
+  const [traceStatus, setTraceStatus] = useState('idle')
+  const [traceMessage, setTraceMessage] = useState(
+    effectiveLanguage === 'plaintext' ? TRACE_LANG_MESSAGE : TRACE_DEFAULT_MESSAGE
   )
-  const [treeBusy, setTreeBusy] = useState(false)
-  const [treeWarnings, setTreeWarnings] = useState([])
+  const [traceBusy, setTraceBusy] = useState(false)
+  const [traceWarnings, setTraceWarnings] = useState([])
+  const [currentStepIndex, setCurrentStepIndex] = useState(-1)
 
   useEffect(() => {
-    setTreeNodes([])
-    setTreeStatus('idle')
-    setTreeBusy(false)
-    setTreeMessage(effectiveLanguage === 'plaintext'
-      ? 'Select or detect a language before generating a tree.'
-      : 'Tree not generated yet. Use "Generate Tree" when you are ready.')
-    setTreeWarnings([])
+    setExecutionTrace([])
+    setTraceStatus('idle')
+    setTraceBusy(false)
+    setTraceWarnings([])
+    setCurrentStepIndex(-1)
+    setTraceMessage(effectiveLanguage === 'plaintext' ? TRACE_LANG_MESSAGE : TRACE_DEFAULT_MESSAGE)
   }, [effectiveLanguage])
 
   const jumpToLine = (ln) => {
@@ -78,32 +81,32 @@ export default function useCodeTree({
     }
   }
 
-  const generateTree = async () => {
+  const generateTrace = async () => {
     const langId = (effectiveLanguage || '').toLowerCase()
     if (!activeFileId || !activeFile) {
-      setTreeStatus('error')
-      setTreeNodes([])
-      setTreeMessage('Add a file before generating a tree.')
+      setTraceStatus('error')
+      setExecutionTrace([])
+      setTraceMessage('Add a file before generating an execution trace.')
       return
     }
     if (!langId || langId === 'plaintext') {
-      setTreeStatus('error')
-      setTreeNodes([])
-      setTreeMessage('Select or detect a language before generating a tree.')
+      setTraceStatus('error')
+      setExecutionTrace([])
+      setTraceMessage(TRACE_LANG_MESSAGE)
       return
     }
     const src = getActiveCode()
     if (!src.trim()) {
-      setTreeStatus('error')
-      setTreeNodes([])
-      setTreeMessage('Add some code to the active file before generating a tree.')
+      setTraceStatus('error')
+      setExecutionTrace([])
+      setTraceMessage('Add some code to the active file before generating an execution trace.')
       return
     }
 
-    setTreeBusy(true)
-    setTreeWarnings([])
-    setTreeStatus('loading')
-    setTreeMessage('Generating tree from backend...')
+    setTraceBusy(true)
+    setTraceWarnings([])
+    setTraceStatus('loading')
+    setTraceMessage('Analyzing code and building execution trace...')
     try {
       const body = buildCfgRequest()
       const res = await fetch(`${apiBase}/cfg`, {
@@ -120,36 +123,51 @@ export default function useCodeTree({
         throw new Error('Malformed /cfg response')
       }
 
-      const tree = materializeCfgTree(data.nodes || [])
-      setTreeNodes(tree)
-      setTreeWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+      const cfgGroups = materializeCfgTree(data.nodes || [])
+      setTraceWarnings(Array.isArray(data.warnings) ? data.warnings : [])
 
-      if (!tree.length || tree.every(g => !g.nodes || g.nodes.length === 0)) {
-        setTreeStatus('empty')
-        setTreeMessage(`No symbols found in ${activeFile.name}.${extForLang(langId)}. Add functions or classes, then try again.`)
+      const filesContent = files.map(f => ({
+        name: nameWithExt(f, langId),
+        content: getLiveContent(f),
+      }))
+
+      const trace = buildExecutionTrace(cfgGroups, filesContent)
+      setExecutionTrace(trace)
+      setCurrentStepIndex(-1)
+
+      if (!trace.length) {
+        setTraceStatus('empty')
+        setTraceMessage(`No execution trace generated. Ensure ${activeFile.name}.${extForLang(langId)} contains executable code.`)
       } else {
-        setTreeStatus('ready')
-        const langLabel = languageLabel(langId)
+        setTraceStatus('ready')
         const entryName = data.entry || `${activeFile.name}.${extForLang(langId)}`
-        setTreeMessage(`Generated (${langLabel}) for ${entryName}. Click a node to jump to its file and line.`)
+        setTraceMessage(`Generated ${trace.length} execution steps for ${entryName}. Click a step to jump to that line.`)
       }
     } catch (err) {
-      setTreeStatus('error')
-      setTreeNodes([])
-      setTreeWarnings([])
-      setTreeMessage(err?.message ? `Tree error: ${err.message}` : 'Failed to build the tree.')
+      setTraceStatus('error')
+      setExecutionTrace([])
+      setTraceWarnings([])
+      setTraceMessage(err?.message ? `Trace error: ${err.message}` : 'Failed to build the execution trace.')
     } finally {
-      setTreeBusy(false)
+      setTraceBusy(false)
+    }
+  }
+
+  const handleStepClick = (step, index) => {
+    setCurrentStepIndex(index)
+    if (step?.file && step?.line && step.line > 0) {
+      jumpToFileAndLine(step.file, step.line)
     }
   }
 
   return {
-    treeNodes,
-    treeStatus,
-    treeMessage,
-    treeBusy,
-    treeWarnings,
-    generateTree,
-    jumpToFileAndLine,
+    executionTrace,
+    currentStepIndex,
+    traceStatus,
+    traceMessage,
+    traceBusy,
+    traceWarnings,
+    generateTrace,
+    handleStepClick,
   }
 }

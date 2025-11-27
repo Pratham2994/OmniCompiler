@@ -10,7 +10,7 @@ import SettingsModal from './debug/SettingsModal.jsx'
 import QuickOpenModal from './debug/QuickOpenModal.jsx'
 import useFocusTrap from './debug/useFocusTrap.js'
 import useDebugRunner from './debug/useDebugRunner.js'
-import useCodeTree from './debug/useCodeTree.js'
+import useExecutionTrace from './debug/useCodeTree.js'
 import useMonacoEditor from './debug/useMonacoEditor.js'
 import { typeColor, typeLegend } from './debug/executionTrace.js'
 import { stripExtension } from './debug/traceUtils.js'
@@ -462,14 +462,15 @@ export default function Debug() {
   }, [cursorPos, activeFileId, activeFile, running, editorRef, stopDebugSession, runProgram])
 
   const {
-    treeNodes,
-    treeStatus,
-    treeMessage,
-    treeBusy,
-    treeWarnings,
-    generateTree,
-    jumpToFileAndLine,
-  } = useCodeTree({
+    executionTrace,
+    currentStepIndex,
+    traceStatus,
+    traceMessage,
+    traceBusy,
+    traceWarnings,
+    generateTrace,
+    handleStepClick,
+  } = useExecutionTrace({
     files,
     activeFile,
     activeFileId,
@@ -478,10 +479,10 @@ export default function Debug() {
     setActiveFileId,
     apiBase,
     getActiveCode,
-    languageLabel,
     buildCfgRequest,
     editorRef,
     nameWithExt,
+    getLiveContent,
   })
 
   return (
@@ -575,11 +576,14 @@ export default function Debug() {
                 removeBreakpoint={removeBreakpoint}
                 effectiveLanguage={effectiveLanguage}
                 languageLabel={languageLabel}
-                generateTree={generateTree}
-                treeBusy={treeBusy}
-                treeStatus={treeStatus}
-                treeMessage={treeMessage}
-                treeWarnings={treeWarnings}
+                generateTrace={generateTrace}
+                traceBusy={traceBusy}
+                traceStatus={traceStatus}
+                traceMessage={traceMessage}
+                traceWarnings={traceWarnings}
+                executionTrace={executionTrace}
+                currentStepIndex={currentStepIndex}
+                onTraceStepClick={handleStepClick}
                 typeLegend={typeLegend}
                 typeColor={typeColor}
                 outputLog={outputLog}
@@ -588,8 +592,6 @@ export default function Debug() {
                 setStdinLine={setStdinLine}
                 sendStdin={sendStdin}
                 waitingForInput={waitingForInput}
-                treeNodes={treeNodes}
-                jumpToFileAndLine={jumpToFileAndLine}
               />
             )}
           </AnimatePresence>
