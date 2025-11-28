@@ -87,7 +87,6 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
       editor.dispose()
       setEditorReady(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monacoReady])
 
   useEffect(() => {
@@ -128,7 +127,6 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
     monaco.editor.setModelLanguage(model, effectiveLanguage || 'plaintext')
     const pos = editor.getPosition()
     if (pos) setCursorPos({ line: pos.lineNumber, column: pos.column })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFileId, filesLength, effectiveLanguage, activeFile?.id])
 
   return {

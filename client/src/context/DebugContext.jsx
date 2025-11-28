@@ -156,7 +156,6 @@ export function DebugProvider({
       const payload = breakpoints.map((bp) => ({ fileId: bp.fileId, line: bp.line, condition: bp.condition || '' }))
       window.localStorage.setItem(BP_STORAGE_KEY, JSON.stringify(payload))
     } catch {
-      /* ignore */
     }
   }, [breakpoints])
 
@@ -266,7 +265,6 @@ export function DebugProvider({
     try {
       persistModelsRef.current?.()
     } catch {
-      /* ignore */
     }
 
     const payload = buildRequest()
@@ -443,7 +441,6 @@ export function DebugProvider({
     try {
       persistModelsRef.current?.()
     } catch {
-      /* ignore */
     }
     const buildRequest = buildDebugRunRequestRef.current
     if (typeof buildRequest !== 'function') {
@@ -526,7 +523,7 @@ export function DebugProvider({
             if (msg.data === 'exited') {
               appendStatusLog(`Status: ${phase}`)
               finalizeSession('terminated', 'Exited')
-              try { wsRef.current?.close() } catch { /* ignore */ }
+              try { wsRef.current?.close() } catch {}
               return
             }
             appendStatusLog(`Status: ${phase}`)
@@ -562,7 +559,7 @@ export function DebugProvider({
           if (msg.type === 'exit') {
             appendStatusLog(`Exit code: ${msg.code}`)
             finalizeSession('terminated', 'Exited')
-            try { wsRef.current?.close() } catch { /* ignore */ }
+            try { wsRef.current?.close() } catch {}
             return
           }
           appendLog('log', `[msg] ${JSON.stringify(msg)}`)
@@ -601,7 +598,6 @@ export function DebugProvider({
       try {
         wsRef.current?.close()
       } catch {
-        /* ignore */
       }
       wsRef.current = null
     }
@@ -656,7 +652,6 @@ export function DebugProvider({
     try {
       wsRef.current?.close()
     } catch {
-      /* ignore */
     }
   }, [])
 

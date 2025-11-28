@@ -14,7 +14,7 @@ export function parseCodeTree(lang, code) {
 export function parsePythonTree(code = '') {
   const lines = String(code || '').replace(/\t/g, '    ').split(/\r?\n/)
   const roots = []
-  const stack = [] // {indent, node}
+  const stack = []
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
     const m = raw.match(/^(\s*)(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)/)
@@ -37,7 +37,7 @@ export function parsePythonTree(code = '') {
 export function parseJsTree(code = '') {
   const lines = String(code || '').split(/\r?\n/)
   const roots = []
-  const classStack = [] // {name, node, depthAtOpen}
+  const classStack = []
   let depth = 0
   const pushRoot = (n) => roots.push(n)
 
@@ -47,7 +47,6 @@ export function parseJsTree(code = '') {
     const open = (raw.match(/{/g) || []).length
     const close = (raw.match(/}/g) || []).length
 
-    // class
     const cm = raw.match(/^\s*class\s+([A-Za-z_$][\w$]*)/)
     if (cm) {
       const node = { type: 'class', name: cm[1], line: i + 1, children: [] }
@@ -55,19 +54,16 @@ export function parseJsTree(code = '') {
       classStack.push({ name: cm[1], node, depthAtOpen: depth + open - close })
     }
 
-    // function decl
     const fm = raw.match(/^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/)
     if (fm) {
       pushRoot({ type: 'function', name: fm[1], line: i + 1, children: [] })
     }
 
-    // const fn = (...) => ...
     const am = raw.match(/^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(.*\)\s*=>/)
     if (am) {
       pushRoot({ type: 'function', name: am[1], line: i + 1, children: [] })
     }
 
-    // methods inside current class
     if (classStack.length && isLikelyMethod(raw)) {
       const mm = raw.match(/^\s*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\(/)
       if (mm) {
@@ -81,7 +77,6 @@ export function parseJsTree(code = '') {
     }
 
     depth += open - close
-    // pop class when depth drops below its open depth
     while (classStack.length && depth < classStack[classStack.length - 1].depthAtOpen) {
       classStack.pop()
     }
@@ -92,7 +87,7 @@ export function parseJsTree(code = '') {
 export function parseJavaTree(code = '') {
   const lines = String(code || '').split(/\r?\n/)
   const roots = []
-  const classStack = [] // {node, depthAtOpen}
+  const classStack = []
   let depth = 0
 
   for (let i = 0; i < lines.length; i++) {

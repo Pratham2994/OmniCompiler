@@ -11,11 +11,9 @@ const nowTime = () => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-// Random helpers for resource simulation
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
 const randomBetween = (min, max) => Math.random() * (max - min) + min
 
-// Format seconds into h:mm:ss or m:ss
 const formatDuration = (totalSeconds) => {
   const s = Math.max(0, Math.floor(totalSeconds || 0))
   const h = Math.floor(s / 3600)
@@ -26,7 +24,6 @@ const formatDuration = (totalSeconds) => {
   return `${m}:${pad(sec)}`
 }
 
-// Interpolation helpers for LOC-based simulation
 const lerp = (a, b, t) => a + (b - a) * t
 const interpolateRange = (small, large, t) => [
   Math.round(lerp(small[0], large[0], t)),
@@ -34,7 +31,6 @@ const interpolateRange = (small, large, t) => [
 ]
 const estimateLOC = (text) => {
   if (!text) return 0
-  // Count lines, ignore trailing empty lines impact
   return String(text).split(/\r?\n/).length
 }
 
@@ -70,11 +66,9 @@ const defaultFiles = [
 
 const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
 
-// Ephemeral autosave (10 minutes TTL)
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
 
-// Read a fresh snapshot synchronously (used by lazy initial state)
 const readFreshSnapshot = () => {
   try {
     const raw = localStorage.getItem(LS_KEY)
@@ -140,7 +134,6 @@ function useFocusTrap(active) {
 }
 
 export default function Run() {
-  // Theme (local)
   const THEME_MAP = {
     'vscode-dark-plus': { rootClass: ['theme-dark', 'dark'], monaco: 'vs-dark' },
     'vscode-light-plus': { rootClass: ['theme-light'], monaco: 'vs' },
@@ -149,32 +142,25 @@ export default function Run() {
   const [theme, setTheme] = useState(() => localStorage.getItem('oc_theme') || 'vscode-dark-plus')
   useEffect(() => {
     const root = document.documentElement
-    // Remove previous theme classes and apply the selected one
     root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'dark')
     const conf = THEME_MAP[theme] || THEME_MAP['vscode-dark-plus']
     conf.rootClass.forEach(c => root.classList.add(c))
     localStorage.setItem('oc_theme', theme)
   }, [theme])
 
-  // Language context (single source of truth, per-file)
   const {
     autoDetect,
     setAutoDetect,
-    // per-file getters
     getManualLanguage,
     getEffectiveLanguage,
-    // per-file setters
     setManualLanguage,
-    // per-file polling
     startPollingForFile,
     stopPollingForFile,
-    // helpers
     detectLanguageOnce,
     buildRunPayload,
     apiBase,
   } = useLanguage()
 
-  // Files State (hydrate synchronously from localStorage if fresh)
   const [files, setFiles] = useState(() => {
     const snap = readFreshSnapshot()
     return snap?.files || defaultFiles
@@ -185,10 +171,8 @@ export default function Run() {
   })
   const activeFile = useMemo(() => files.find(f => f.id === activeFileId) || files[0], [files, activeFileId])
 
-  // Hydration gate to avoid overwriting snapshot on first mount
   const [hydrated, setHydrated] = useState(false)
 
-  // Ephemeral autosave support
   const saveTimerRef = useRef(null)
   const modelsRef = useRef(new Map())
 
@@ -222,10 +206,8 @@ export default function Run() {
       }
       flushSnapshotRef.current?.()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Mark hydrated and clean expired snapshot
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY)
@@ -237,10 +219,8 @@ export default function Run() {
       }
     } catch {}
     setHydrated(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Debounced snapshot saver
   useEffect(() => {
     if (!hydrated) return
     if (saveTimerRef.current) {
@@ -259,7 +239,6 @@ export default function Run() {
     }
   }, [flushSnapshot, hydrated])
 
-  // Flush snapshot on tab hide/close
   useEffect(() => {
     if (!hydrated) return
 
@@ -275,14 +254,12 @@ export default function Run() {
     }
   }, [flushSnapshot, hydrated])
 
-  // Per-file language views
   const manualLanguage = getManualLanguage(activeFileId)
   const effectiveLanguage = getEffectiveLanguage(activeFileId)
 
-  // Drawer
   const [leftMounted, setLeftMounted] = useState(false)
   const [leftOpen, setLeftOpen] = useState(false)
-  const [leftTab] = useState('files') // 'files' | 'deps'
+  const [leftTab] = useState('files')
   const leftTrapRef = useFocusTrap(leftOpen)
 
   const openDrawer = () => {
@@ -304,9 +281,8 @@ export default function Run() {
     return () => el.removeEventListener('trap-escape', h)
   }, [leftOpen, leftTrapRef])
 
-  // Output / Split
   const [outputCollapsed, setOutputCollapsed] = useState(false)
-  const [splitRatio, setSplitRatio] = useState(0.65) // editor width ratio (default 65/35)
+  const [splitRatio, setSplitRatio] = useState(0.65)
   const isResizingRef = useRef(false)
 
   useEffect(() => {
@@ -315,7 +291,7 @@ export default function Run() {
       const bodyRect = document.getElementById('oc-workspace')?.getBoundingClientRect()
       if (!bodyRect) return
       const x = e.clientX - bodyRect.left
-      const ratio = clamp(x / bodyRect.width, 0.4, 0.7) // min editor 40%, min output 30%
+      const ratio = clamp(x / bodyRect.width, 0.4, 0.7)
       setSplitRatio(ratio)
     }
     const onUp = () => {
@@ -331,7 +307,6 @@ export default function Run() {
     }
   }, [])
 
-  // Track workspace width for smooth width animations
   const [workspaceW, setWorkspaceW] = useState(0)
   useEffect(() => {
     const el = document.getElementById('oc-workspace')
@@ -346,7 +321,6 @@ export default function Run() {
     return () => ro.disconnect()
   }, [])
 
-  // Editor (Monaco via CDN loader)
   const editorContainerRef = useRef(null)
   const editorRef = useRef(null)
   const monacoRef = useRef(null)
@@ -362,7 +336,6 @@ export default function Run() {
     }
   }, [])
 
-  // Create editor once
   useEffect(() => {
     if (!monacoReady) return
     if (editorRef.current) return
@@ -411,7 +384,6 @@ export default function Run() {
       setCursorPos({ line: ev.position.lineNumber, column: ev.position.column })
     })
 
-    // initial model
     if (activeFile) {
       const model = ensureModel(activeFile)
       editor.setModel(model)
@@ -424,10 +396,8 @@ export default function Run() {
       editor.dispose()
       editorRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monacoReady])
 
-  // Update theme in Monaco when theme changes
   useEffect(() => {
     const monaco = monacoRef.current
     if (!monaco) return
@@ -435,7 +405,6 @@ export default function Run() {
     monaco.editor.setTheme(conf.monaco)
   }, [theme])
 
-  // Update language in Monaco when the effective language changes
   useEffect(() => {
     const monaco = monacoRef.current
     const editor = editorRef.current
@@ -445,7 +414,6 @@ export default function Run() {
     monaco.editor.setModelLanguage(model, effectiveLanguage || 'plaintext')
   }, [effectiveLanguage])
 
-  // Change model on activeFile change
   useEffect(() => {
     const monaco = monacoRef.current
     const editor = editorRef.current
@@ -465,10 +433,8 @@ export default function Run() {
     monaco.editor.setModelLanguage(model, effectiveLanguage || 'plaintext')
     const pos = editor.getPosition()
     if (pos) setCursorPos({ line: pos.lineNumber, column: pos.column })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFileId, files.length])
 
-  // Settings Modal state
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsTrapRef = useFocusTrap(settingsOpen)
   const [fontSize, setFontSize] = useState(14)
@@ -487,7 +453,6 @@ export default function Run() {
     return () => el.removeEventListener('trap-escape', h)
   }, [settingsOpen, settingsTrapRef])
 
-  // Left Drawer - Files handlers
   const [showToast, setShowToast] = useState(null)
   const triggerToast = (msg) => {
     setShowToast(msg)
@@ -601,15 +566,13 @@ export default function Run() {
     })
   }
 
-  // Output / Run
-  const [outputTab, setOutputTab] = useState('run') // 'run' | 'resources'
+  const [outputTab, setOutputTab] = useState('run')
   const [outputLog, setOutputLog] = useState([{ kind: 'log', text: 'Welcome to Omni Compiler.' }])
   const [running, setRunning] = useState(false)
   const wsRef = useRef(null)
   const [stdinLine, setStdinLine] = useState('')
   const [waitingForInput, setWaitingForInput] = useState(false)
 
-  // Resources metrics (frontend-only simulation)
   const [hasEverRun, setHasEverRun] = useState(false)
   const [metrics, setMetrics] = useState({ cpu: null, memMB: null, timeSec: 0 })
   const metricsTimerRef = useRef(null)
@@ -620,7 +583,6 @@ export default function Run() {
 
       const lang = getEffectiveLanguage(activeFileId) || 'plaintext'
 
-      // Compute LOC for active file to scale ranges
       let activeText = ''
       try {
         const m = modelsRef.current?.get(activeFileId)
@@ -628,14 +590,12 @@ export default function Run() {
       } catch {}
       const loc = estimateLOC(activeText)
 
-      // Map LOC to [0..1] where 0 ≈ 10–20 LOC, 1 ≈ 1000 LOC
       const t = clamp((loc - 20) / (1000 - 20), 0, 1)
 
-      // Per-language small/large ranges derived from provided guidance
       const small = {
         python: { cpu: [15, 25], mem: [20, 50] },
-        javascript: { cpu: [10, 15], mem: [25, 60] }, // Node runtime resident
-        java: { cpu: [10, 20], mem: [20, 40] },       // JVM startup spike, small baseline
+        javascript: { cpu: [10, 15], mem: [25, 60] },
+        java: { cpu: [10, 20], mem: [20, 40] },
         cpp: { cpu: [5, 10], mem: [1, 5] },
         go: { cpu: [8, 12], mem: [5, 15] },
         plaintext: { cpu: [0, 3], mem: [5, 20] },
@@ -666,28 +626,21 @@ export default function Run() {
           const prevCpu = typeof prev.cpu === 'number' ? prev.cpu : initCpu
           const prevMem = typeof prev.memMB === 'number' ? prev.memMB : initMem
 
-          // CPU gently drifts toward a target near the mid of the LOC-scaled range
           const targetBase = Math.round((cpuRange[0] + cpuRange[1]) / 2)
-          // Bias Python toward the high end for large LOC due to GIL-limited CPU saturation
           const bias = (lang === 'python' && t > 0.5) ? Math.round((cpuRange[1] - targetBase) * 0.25) : 0
           const targetCpu = clamp(targetBase + bias, cpuRange[0], cpuRange[1])
 
-          // Jitter
           let cpuNext = clamp(Math.round(prevCpu + randomBetween(-3, 6)), cpuRange[0], cpuRange[1])
 
-          // Language-specific behavior:
-          // Go: occasional GC dip
           if (lang === 'go' && Math.random() < 0.08) {
             cpuNext = clamp(prevCpu - randInt(10, 25), cpuRange[0], cpuRange[1])
           }
-          // Java: occasional GC bump
           if (lang === 'java' && Math.random() < 0.06) {
             cpuNext = clamp(prevCpu + randInt(8, 18), cpuRange[0], cpuRange[1])
           }
 
           const cpuAdjusted = clamp(Math.round(cpuNext * 0.85 + targetCpu * 0.15), cpuRange[0], cpuRange[1])
 
-          // Memory: mild upward drift within LOC-scaled range
           const memNext = clamp(Math.round(prevMem + randomBetween(-2, 4)), memRange[0], memRange[1])
 
           return { cpu: cpuAdjusted, memMB: memNext, timeSec: (prev.timeSec || 0) + 1 }
@@ -707,7 +660,6 @@ export default function Run() {
       }
     }
   }, [running, activeFileId])
-  // Map monaco language id -> file extension
   const extForLang = (l) => {
     switch ((l || '').toLowerCase()) {
       case 'python': return 'py'
@@ -719,8 +671,6 @@ export default function Run() {
     }
   }
 
-  // Build backend /run request from current files and active entry
-  // Important: pull latest content from Monaco models (state may lag).
   const buildRunRequest = () => {
     const entryId = activeFileId
     const entryFile = files.find(f => f.id === entryId) || activeFile
@@ -762,7 +712,6 @@ export default function Run() {
     setOutputTab('run')
     const ts = nowTime()
 
-    // Guard: do not send plaintext to backend
     const effLang = getEffectiveLanguage(activeFileId) || 'plaintext'
     if (effLang === 'plaintext') {
       setRunning(false)
@@ -771,7 +720,6 @@ export default function Run() {
       return
     }
 
-    // ensure active model value flushed into state before sending
     const ed = editorRef.current
     const model = ed?.getModel()
     if (model && activeFileId) {
@@ -780,7 +728,6 @@ export default function Run() {
       setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, content: normalized } : f))
     }
 
-    // close any previous socket
     if (wsRef.current) {
       try { wsRef.current.close() } catch {}
       wsRef.current = null
@@ -828,21 +775,17 @@ export default function Run() {
           setOutputLog(prev => [...prev, { kind: 'log', text: `[raw] ${String(raw ?? '')}` }])
           return
         }
- 
+
         try {
           if (msg?.type === 'out' || msg?.type === 'err') {
-            // Server uses type 'err' both for process stderr and protocol errors.
-            // If data is empty, surface a clearer placeholder.
             const dataStr = String(msg.data ?? '')
             const finalStr = dataStr.length ? dataStr : '(empty)'
             setOutputLog(prev => [...prev, { kind: (msg.type === 'err' ? 'err' : 'out'), text: finalStr }])
-            // Heuristic prompt detection: enable stdin when stdout chunk does not end with newline
             if (msg.type === 'out') {
               const seemsPrompt = dataStr.length > 0 && !dataStr.endsWith('\n')
               setWaitingForInput(seemsPrompt)
             }
- 
-            // Helpful hint if session was invalidated (e.g., server reload)
+
             if (msg.type === 'err' && typeof msg.data === 'string' && /invalid session_id/i.test(msg.data)) {
               setOutputLog(prev => [
                 ...prev,
@@ -860,7 +803,6 @@ export default function Run() {
             try { ws.close() } catch {}
             wsRef.current = null
           } else {
-            // Unknown typed message: show it raw for diagnostics
             setOutputLog(prev => [...prev, { kind: 'log', text: `[msg] ${JSON.stringify(msg)}` }])
           }
         } catch (e) {
@@ -885,7 +827,6 @@ export default function Run() {
     }
   }
 
-  // Cleanup WS on unmount
   useEffect(() => {
     return () => {
       if (wsRef.current) {
@@ -895,29 +836,22 @@ export default function Run() {
     }
   }, [])
 
-  // Clear output log
   const onClearOutput = () => {
     setOutputLog([])
   }
 
-  // Send stdin with local echo so the user's input is visible next to prompts
   const sendStdin = () => {
     if (!(wsRef.current && running && waitingForInput)) return
     if (!stdinLine) return
     const data = stdinLine.endsWith('\n') ? stdinLine : (stdinLine + '\n')
     try { wsRef.current.send(JSON.stringify({ type: 'in', data })) } catch {}
 
-    // Local echo:
-    // - If the last output line did NOT end with a newline, append the user input to that same line
-    //   so prompts like "What is your name? " show "What is your name? Pratham".
-    // - If it did end with a newline or no lines exist, add a new entry.
     setOutputLog(prev => [...prev, { kind: 'in', text: data }])
 
     setStdinLine('')
     setWaitingForInput(false)
   }
 
-  // Keyboard Shortcuts
   const [quickOpen, setQuickOpen] = useState(false)
   const quickTrapRef = useFocusTrap(quickOpen)
   const [quickQuery, setQuickQuery] = useState('')
@@ -938,17 +872,14 @@ export default function Run() {
 
   useEffect(() => {
     const onKey = (e) => {
-      // Ctrl/Cmd+Enter: Run
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
         runProgram()
       }
-      // Ctrl/Cmd+P: Quick file switcher (modal)
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p')) {
         e.preventDefault()
         setQuickOpen(true)
       }
-      // Ctrl/Cmd+F: Find in editor
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f')) {
         const ed = editorRef.current
         if (ed) {
@@ -959,10 +890,8 @@ export default function Run() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running])
 
-  // Editor actions
   const onFormat = async () => {
     const ed = editorRef.current
     if (!ed) return
@@ -973,7 +902,7 @@ export default function Run() {
         triggerToast('Formatted')
         return
       }
-    } catch { /* ignore and fallback */ }
+    } catch {}
     const model = ed.getModel()
     if (!model) return
     const original = model.getValue()
@@ -992,19 +921,14 @@ export default function Run() {
     ed.getAction('actions.find')?.run()
   }
 
-  // Responsive: collapse output toggle
   const toggleOutputCollapsed = () => setOutputCollapsed(v => !v)
 
-  // Derived widths (px) for smooth animation
   const editorBasisPx = Math.max(0, Math.round((outputCollapsed ? 1 : splitRatio) * workspaceW))
   const outputBasisPx = Math.max(0, Math.round((outputCollapsed ? 0 : (1 - splitRatio)) * workspaceW))
-  // Fallback % widths until ResizeObserver reports size (prevents initial snap)
   const editorWidthStyle = workspaceW ? editorBasisPx : (outputCollapsed ? '100%' : `${Math.round(splitRatio * 100)}%`)
   const outputWidthStyle = workspaceW ? outputBasisPx : (outputCollapsed ? '0%' : `${Math.round((1 - splitRatio) * 100)}%`)
-  // Compact editor header when the editor is very narrow
   const editorCompact = !outputCollapsed && splitRatio < 0.28
 
-  // Start/stop auto-detect polling for ACTIVE FILE ONLY (drive detectedLanguage updates)
   useEffect(() => {
     const editor = editorRef.current
     if (!editor || !activeFileId) return
@@ -1016,7 +940,6 @@ export default function Run() {
     return () => {
       stopPollingForFile(activeFileId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetect, monacoReady, activeFileId])
 
   return (
@@ -1028,9 +951,7 @@ export default function Run() {
         Skip to editor
       </a>
 
-      {/* Header */}
       <header className="h-14 border-b border-[var(--oc-border)] flex items-center justify-between px-3 gap-3">
-        {/* Left slot */}
         <div className="flex items-center gap-3">
           <Link
             to="/run"
@@ -1074,7 +995,6 @@ export default function Run() {
           </nav>
         </div>
 
-        {/* Right slot */}
         <div className="flex items-center gap-1">
           <button
             id="settingsBtn"
@@ -1089,9 +1009,7 @@ export default function Run() {
         </div>
       </header>
 
-      {/* Body */}
       <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden">
-        {/* Left drawer trigger */}
         <button
           data-testid="tid-left-drawer-trigger"
           className="absolute left-0 top-1/2 -translate-y-1/2 z-30 oc-icon-btn rounded-r-lg"
@@ -1102,7 +1020,6 @@ export default function Run() {
           <Icon name="chevron-right" />
         </button>
 
-        {/* Left overlay drawer */}
         {leftMounted && (
           <div
             role="dialog"
@@ -1250,14 +1167,11 @@ export default function Run() {
                 )}
               </div>
             </div>
-            {/* 20px gutter visible over editor */}
             <div className="w-5 h-full" />
           </div>
         )}
 
-        {/* Workspace split */}
         <div id="oc-workspace" className="absolute inset-0 flex">
-          {/* Code pane */}
           <motion.section
             id="editor-pane"
             className="h-full border-r border-[var(--oc-border)] flex flex-col"
@@ -1265,7 +1179,6 @@ export default function Run() {
             animate={workspaceW ? { width: editorBasisPx } : undefined}
             transition={{ duration: 0.28, ease: [0.22, 0.8, 0.36, 1] }}
           >
-            {/* Editor header / breadcrumbs / actions */}
             <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs md:text-sm">
                 <nav aria-label="Breadcrumbs" className="flex items-center gap-1 text-[var(--oc-muted)]">
@@ -1304,10 +1217,8 @@ export default function Run() {
               </div>
             </div>
 
-            {/* Monaco Editor container */}
             <div ref={editorContainerRef} className="flex-1 min-h-0" aria-label="Code editor" />
 
-            {/* Statusbar */}
             <div className="h-7 shrink-0 px-3 border-t border-[var(--oc-border)] text-[11px] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span id="cursorPos">Ln {cursorPos.line}, Col {cursorPos.column}</span>
@@ -1321,7 +1232,6 @@ export default function Run() {
             </div>
           </motion.section>
 
-          {/* Splitter */}
           <motion.div
             role="separator"
             aria-orientation="vertical"
@@ -1336,7 +1246,6 @@ export default function Run() {
             transition={{ duration: 0.2 }}
           />
 
-          {/* Output Pane */}
           <AnimatePresence initial={false}>
             {!outputCollapsed && (
               <motion.section
@@ -1347,9 +1256,7 @@ export default function Run() {
                 exit={{ opacity: 0, x: 12, width: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 0.8, 0.36, 1] }}
               >
-                {/* Output header */}
                 <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between">
-                  {/* Tabs (left) */}
                   <div role="tablist" aria-label="Output tabs" className="flex items-center gap-1">
                     <button
                       role="tab"
@@ -1383,7 +1290,6 @@ export default function Run() {
                     </button>
                   </div>
 
-                  {/* Actions (right) */}
                   <div className="flex items-center gap-1.5">
                     <button
                       data-testid="tid-run-btn"
@@ -1428,7 +1334,6 @@ export default function Run() {
                   </div>
                 </div>
 
-                {/* Output content */}
                 <div className="flex-1 min-h-0 p-3 flex flex-col">
                   {outputTab === 'run' && (
                     <div className="flex-1 min-h-0 flex flex-col gap-3">
@@ -1519,7 +1424,6 @@ export default function Run() {
         </div>
       </div>
 
-      {/* Settings Modal */}
       {settingsOpen && (
         <div
           role="dialog"
@@ -1634,7 +1538,6 @@ export default function Run() {
         </div>
       )}
 
-      {/* Quick Open (Ctrl/Cmd+P) */}
       {quickOpen && (
         <div
           role="dialog"
@@ -1676,7 +1579,6 @@ export default function Run() {
         </div>
       )}
 
-      {/* Toast */}
       <AnimatePresence>
         {showToast && (
           <motion.div

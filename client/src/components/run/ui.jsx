@@ -64,7 +64,6 @@ export function Icon({ name, className = 'size-4', strokeWidth = 2, label }) {
       return (<svg {...props}><rect x="6" y="6" width="12" height="12" rx="2" /></svg>)
     case 'pause':
       return (<svg {...props}><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>)
-    // Flow graph node type icons
     case 'node-function':
       return (<svg {...props}><path d="M4 6h4v2H4zM16 6h4v2h-4z" fill="currentColor" /><rect x="6" y="4" width="12" height="16" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>)
     case 'node-class':

@@ -131,7 +131,6 @@ export default function Debug() {
       }
       flushSnapshotRef.current?.()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -416,7 +415,6 @@ export default function Debug() {
       stopPollingForFile(activeFileId)
     }
     return () => { stopPollingForFile(activeFileId) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetect, monacoReady, activeFileId])
 
   function getActiveCode() {

@@ -10,18 +10,14 @@
       html, body, #root { height: 100%; }
     </style>
     <script>
-      // Load Monaco Editor via CDN (no npm dependency)
-      // Emits a global 'monaco_ready' event when loaded.
       (function loadMonacoCDN() {
         const base = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min'
         const loader = document.createElement('script')
         loader.src = base + '/vs/loader.js'
         loader.async = true
         loader.onload = function () {
-          // 'require' is provided by loader.js
           window.require.config({ paths: { vs: base + '/vs' } })
           window.require(['vs/editor/editor.main'], function () {
-            // expose globally for app usage
             window.monaco = monaco
             window.dispatchEvent(new Event('monaco_ready'))
           })

@@ -101,5 +101,4 @@ export const formatStepFunctionLabel = (value) => {
   return cleaned || raw
 }
 
-// Memo helper for external consumers that want to re-export memo without importing React.
 export const memoized = (component) => memo(component)

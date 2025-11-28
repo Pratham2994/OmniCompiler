@@ -188,7 +188,6 @@ export default function Translate() {
       }
       flushSnapshotRef.current?.()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -369,7 +368,6 @@ export default function Translate() {
       editor.dispose()
       editorRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monacoReady])
 
   useEffect(() => {
@@ -405,7 +403,6 @@ export default function Translate() {
     monaco.editor.setModelLanguage(model, effectiveLanguage || 'plaintext')
     const pos = editor.getPosition()
     if (pos) setCursorPos({ line: pos.lineNumber, column: pos.column })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFileId, files.length])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -679,7 +676,6 @@ export default function Translate() {
     return () => {
       stopPollingForFile(activeFileId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetect, monacoReady, activeFileId])
 
   const sourceBadgeText = autoDetect

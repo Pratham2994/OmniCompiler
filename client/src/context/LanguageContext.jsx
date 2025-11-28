@@ -1,18 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
-/**
- * LanguageContext (per-file)
- * - Single source of truth for language per fileId.
- * - Auto-detect (heuristic for now) and manual override are both tracked per file.
- * - startPollingForFile polls only the provided fileId (caller should pass active file).
- * - All future HTTP/WS for detection will live here only.
- */
-
 const MONACO_IDS = ['python', 'javascript', 'java', 'cpp', 'go', 'plaintext']
 
 const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
 
-// API base for backend detection
 const API_BASE = (import.meta?.env?.VITE_API_BASE) || 'http://localhost:8000'
 const DETECT_CHUNK = 4000
 
@@ -21,7 +12,6 @@ function normalizeLang(id) {
   return MONACO_IDS.includes(s) ? s : 'plaintext'
 }
 
-// Build request body for /detect
 function buildDetectPayload(code = '', moreChunks = null) {
   const text = normalizeNewlines(String(code || ''))
   const first = text.slice(0, DETECT_CHUNK)
@@ -40,7 +30,6 @@ function buildDetectPayload(code = '', moreChunks = null) {
   return payload
 }
 
-// Call backend /detect endpoint
 async function postDetect(code = '') {
   try {
     const res = await fetch(`${API_BASE}/detect`, {
@@ -59,7 +48,6 @@ async function postDetect(code = '') {
   }
 }
 
-// Detect with server, honoring need_more request_ranges (retry)
 async function detectFromServerWithRetries(code = '', maxRounds = 3) {
   let rounds = 0
   let moreChunks = null
@@ -98,7 +86,6 @@ async function detectFromServerWithRetries(code = '', maxRounds = 3) {
         rounds += 1
         continue
       }
-      // any other status or missing fields
       break
     } catch {
       break
@@ -107,7 +94,6 @@ async function detectFromServerWithRetries(code = '', maxRounds = 3) {
   return { status: 'error', lang: null, confidence: null, source: null }
 }
 
-// Heuristic fallback (kept for any offline/edge cases)
 function heuristicDetectLanguage(code = '') {
   const src = String(code || '')
   if (!src.trim()) return 'plaintext'
@@ -122,23 +108,18 @@ function heuristicDetectLanguage(code = '') {
 const LanguageContext = createContext(null)
 
 export function LanguageProvider({ children }) {
-  // Global toggle: auto vs manual (applies to how effective language is chosen per-file)
   const [autoDetect, setAutoDetect] = useState(true)
 
-  // Per-file maps
-  const [manualByFile, setManualByFile] = useState(() => ({}))          // { [fileId]: monacoId }
-  const [detectedByFile, setDetectedByFile] = useState(() => ({}))      // { [fileId]: monacoId }
-  const [lastMetaByFile, setLastMetaByFile] = useState(() => ({}))      // { [fileId]: { status, lang, confidence, source } }
+  const [manualByFile, setManualByFile] = useState(() => ({}))
+  const [detectedByFile, setDetectedByFile] = useState(() => ({}))
+  const [lastMetaByFile, setLastMetaByFile] = useState(() => ({}))
 
-  // Version bump to trigger subscribers when any per-file value changes
   const [version, setVersion] = useState(0)
   const bump = () => setVersion(v => v + 1)
 
-  // Poll timers per file
-  const pollTimersRef = useRef(new Map()) // fileId -> intervalId
-  const inFlightRef = useRef(new Map())   // fileId -> boolean (prevent overlapping requests)
+  const pollTimersRef = useRef(new Map())
+  const inFlightRef = useRef(new Map())
 
-  // Accessors
   const getManualLanguage = (fileId) => {
     const v = (fileId && manualByFile[fileId]) || ''
     return MONACO_IDS.includes(v) ? v : ''
@@ -157,7 +138,6 @@ export function LanguageProvider({ children }) {
     return (fileId && lastMetaByFile[fileId]) || null
   }
 
-  // Setters
   const setManualLanguage = (fileId, langId) => {
     if (!fileId) return
     setManualByFile(prev => {
@@ -175,7 +155,6 @@ export function LanguageProvider({ children }) {
     bump()
   }
 
-  // Polling for a specific file
   function stopPollingForFile(fileId) {
     if (!fileId) return
     const m = pollTimersRef.current
@@ -209,7 +188,6 @@ export function LanguageProvider({ children }) {
       }
     }
 
-    // Fire once immediately, then every interval
     tick()
     const id = setInterval(tick, Math.max(500, Number(intervalMs) || 2000))
     pollTimersRef.current.set(fileId, id)
@@ -217,7 +195,6 @@ export function LanguageProvider({ children }) {
 
   useEffect(() => () => stopAllPolling(), [])
 
-  // Helpers
   async function detectLanguageOnce(getCode, fileId) {
     const raw = typeof getCode === 'function' ? (getCode() || '') : ''
     const code = normalizeNewlines(String(raw))
@@ -237,7 +214,6 @@ export function LanguageProvider({ children }) {
     }
   }
 
-  // Placeholders for future HTTP/WS
   async function requestDetectFromServer(code, fileId) {
     const res = await detectFromServerWithRetries(code || '', 3)
     if (res?.lang && fileId) {
@@ -250,24 +226,19 @@ export function LanguageProvider({ children }) {
   function disconnectLanguageWs() {}
 
   const value = useMemo(() => ({
-    // global
     autoDetect,
     setAutoDetect,
     version,
     apiBase: API_BASE,
-    // per-file getters
     getManualLanguage,
     getDetectedLanguage,
     getEffectiveLanguage,
     getLastDetectMeta,
-    // per-file setters
     setManualLanguage,
     setDetectedLanguage,
-    // polling (per-file)
     startPollingForFile,
     stopPollingForFile,
     stopAllPolling,
-    // helpers/stubs
     detectLanguageOnce,
     buildRunPayload,
     requestDetectFromServer,

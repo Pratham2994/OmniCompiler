@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "reactflow/dist/style.css";
 
-/* Omni Compiler — Design Tokens (Light/Dark) */
+
 :root {
   --oc-bg: #f6f6f8;
   --oc-fg: #0b0d12;
@@ -9,24 +9,24 @@
   --oc-surface-2: #f3f4f6;
   --oc-border: rgba(17,17,17,0.08);
 
-  --oc-primary-500: #8b5cf6; /* light purple */
-  --oc-primary-600: #7c3aed; /* vibrant purple */
-  --oc-primary-700: #6d28d9; /* dark purple */
+  --oc-primary-500: #8b5cf6; 
+  --oc-primary-600: #7c3aed; 
+  --oc-primary-700: #6d28d9; 
 
   --oc-muted: #6b7280;
   --oc-ring: var(--oc-primary-500);
-  --oc-on-primary: #ffffff; /* readable foreground on primary in light */
+  --oc-on-primary: #ffffff; 
 
   --oc-success: #22c55e;
   --oc-danger: #ef4444;
 
-  /* Console line colors (Light) */
-  --oc-console-log: #64748b; /* slate-500 (duller logs) */
-  --oc-console-out: #16a34a; /* green-600 (stdout) */
-  --oc-console-err: #dc2626; /* red-600 (stderr) */
-  --oc-console-in:  #0891b2; /* cyan-700 (stdin echo) */
+  
+  --oc-console-log: #64748b; 
+  --oc-console-out: #16a34a; 
+  --oc-console-err: #dc2626; 
+  --oc-console-in:  #0891b2; 
 
-  /* Execution trace semantic colors (Light) */
+  
   --oc-trace-function: #8b5cf6;
   --oc-trace-class: #eab308;
   --oc-trace-conditional: #f97316;
@@ -42,7 +42,7 @@
   --oc-trace-default: #8b5cf6;
 }
 
-/* Dark (VS Code Dark+) — also applies when Run page sets theme-dark */
+
 .dark, .theme-dark {
   --oc-bg: #0b0d12;
   --oc-fg: #e5e7eb;
@@ -56,15 +56,15 @@
 
   --oc-muted: #9ca3af;
   --oc-ring: var(--oc-primary-600);
-  --oc-on-primary: #ffffff; /* readable foreground on purple in dark */
+  --oc-on-primary: #ffffff; 
 
-  /* Console line colors (Dark) */
-  --oc-console-log: #9ca3af; /* gray-400 (duller logs) */
-  --oc-console-out: #86efac; /* emerald-300 (stdout) */
-  --oc-console-err: #f87171; /* red-400 (stderr) */
-  --oc-console-in:  #7dd3fc; /* sky-300 (stdin echo) */
+  
+  --oc-console-log: #9ca3af; 
+  --oc-console-out: #86efac; 
+  --oc-console-err: #f87171; 
+  --oc-console-in:  #7dd3fc; 
 
-  /* Execution trace semantic colors (Dark) */
+  
   --oc-trace-function: #c4b5fd;
   --oc-trace-class: #facc15;
   --oc-trace-conditional: #fb923c;
@@ -80,12 +80,12 @@
   --oc-trace-default: #a78bfa;
 }
 
-/* Light (VS Code Light+) — uses :root defaults; class present for clarity */
+
 .theme-light {
-  /* Intentionally empty: falls back to :root tokens */
+  
 }
 
-/* High Contrast (VS Code High Contrast) */
+
 .theme-hc {
   --oc-bg: #000000;
   --oc-fg: #ffffff;
@@ -93,22 +93,22 @@
   --oc-surface-2: #141414;
   --oc-border: rgba(255,255,255,0.35);
 
-  /* Accent with strong yellow similar to HC emphasis */
+  
   --oc-primary-500: #f5d90a;
   --oc-primary-600: #f0c000;
   --oc-primary-700: #e0a800;
 
   --oc-muted: #e5e7eb;
   --oc-ring: var(--oc-primary-600);
-  --oc-on-primary: #000000; /* black text on yellow for true HC */
+  --oc-on-primary: #000000; 
 
-  /* Console line colors (High Contrast) */
-  --oc-console-log: #bfbfbf; /* lighter gray for logs */
-  --oc-console-out: #f5d90a; /* yellow (stdout) */
-  --oc-console-err: #ff4d4d; /* vivid red (stderr) */
-  --oc-console-in:  #00d0ff; /* bright cyan (stdin echo) */
+  
+  --oc-console-log: #bfbfbf; 
+  --oc-console-out: #f5d90a; 
+  --oc-console-err: #ff4d4d; 
+  --oc-console-in:  #00d0ff; 
 
-  /* Execution trace semantic colors (HC) */
+  
   --oc-trace-function: #f5d90a;
   --oc-trace-class: #00f0ff;
   --oc-trace-conditional: #ffa500;
@@ -124,13 +124,13 @@
   --oc-trace-default: #f5d90a;
 }
 
-/* App background/text */
+
 html, body, #root {
   background-color: var(--oc-bg);
   color: var(--oc-fg);
 }
 
-/* Cards / Panels */
+
 .oc-card {
   background: var(--oc-surface);
   border: 1px solid var(--oc-border);
@@ -138,7 +138,7 @@ html, body, #root {
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-/* Buttons */
+
 .oc-btn {
   display: inline-flex;
   align-items: center;
@@ -184,7 +184,7 @@ html, body, #root {
 .oc-icon-btn:active { transform: translateY(0.5px); }
 .oc-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--oc-ring); }
 
-/* Inputs */
+
 .oc-input {
   height: 2.5rem;
   width: 100%;
@@ -199,7 +199,7 @@ html, body, #root {
 .oc-input::placeholder { color: var(--oc-muted); }
 .oc-input:focus { outline: none; border-color: var(--oc-primary-600); box-shadow: 0 0 0 2px var(--oc-ring); }
 
-/* Chips / badges */
+
 .oc-chip {
   display: inline-flex;
   align-items: center;
@@ -212,7 +212,7 @@ html, body, #root {
   color: var(--oc-fg);
 }
 
-/* CFG view */
+
 .oc-cfg-item { position: relative; list-style: none; }
 .oc-cfg-row { display: flex; align-items: center; gap: 0.4rem; }
 .oc-cfg-toggle {
@@ -360,18 +360,18 @@ html, body, #root {
 }
 .oc-cfg-flow-shell .react-flow__controls button:last-child { border-bottom: none; }
 
-/* Dividers / borders */
+
 .oc-divider { border-color: var(--oc-border); }
 
-/* Output console colors */
+
 .oc-console {
   background: #0a0a0a;
-  color: var(--oc-console-out); /* default text color = stdout */
+  color: var(--oc-console-out); 
   border-radius: 0.5rem;
   border: 1px solid rgba(255,255,255,0.08);
 }
 
-/* Toast */
+
 .oc-toast {
   border-radius: 0.5rem;
   background: var(--oc-fg);
@@ -379,11 +379,11 @@ html, body, #root {
   box-shadow: 0 8px 30px rgba(0,0,0,0.25);
 }
 
-/* 1) Ensure no width transition animations on the code/output panes (safety net) */
+
 #oc-workspace section[style] { transition: none !important; }
 
 
-/* Monaco breakpoint glyphs */
+
 .monaco-editor .oc-breakpoint-glyph {
   width: 8px;
   height: 8px;
@@ -412,7 +412,7 @@ html, body, #root {
 }
 
 
-/* Monaco Find widget — minimal, sane alignment and spacing (cleaned up) */
+
 .monaco-editor .find-widget { transition: none !important; }
 .monaco-editor .find-widget .monaco-findInput { margin-right: 8px !important; }
 .monaco-editor .find-widget .monaco-findInput .controls,
@@ -446,7 +446,7 @@ html, body, #root {
   margin: 0 8px !important;
   padding: 0 !important;
 }
-/* CTA (Run) button — solid, consistent purple; subtle hover/press */
+
 .oc-btn-cta {
   display: inline-flex;
   align-items: center;
@@ -455,7 +455,7 @@ html, body, #root {
   border: 1px solid transparent;
   background: var(--oc-primary-600);
   color: var(--oc-on-primary);
-  border-radius: 9999px; /* allow rounded-full buttons */
+  border-radius: 9999px; 
   box-shadow:
     0 4px 14px rgba(124,58,237,0.25),
     inset 0 -1px 0 rgba(0,0,0,0.15);
@@ -465,36 +465,34 @@ html, body, #root {
 .oc-btn-cta:active { transform: translateY(0.5px); box-shadow: 0 2px 10px rgba(124,58,237,0.22), inset 0 0 0 rgba(0,0,0,0.15); }
 .oc-btn-cta:disabled { opacity: 0.7; cursor: not-allowed; }
 
-/* Theming helpers */
+
 .oc-focus:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--oc-ring);
 }
 
-/* Vertical splitter hover color respects theme primary */
+
 .oc-splitter:hover {
-  /* Use color-mix to produce a translucent hover color from primary */
+  
   background: color-mix(in srgb, var(--oc-primary-600) 28%, transparent);
 }
 
-/* Selected listrow/pill using theme primary tint (works for all themes incl HC) */
+
 .oc-selected {
   background: color-mix(in srgb, var(--oc-primary-600) 16%, transparent);
   outline: 1px solid color-mix(in srgb, var(--oc-primary-600) 55%, transparent);
   outline-offset: 0;
 }
 
-/* Per-line console coloring */
+
 .oc-line-log { color: var(--oc-console-log); }
 .oc-line-out { color: var(--oc-console-out); }
 .oc-line-err { color: var(--oc-console-err); }
 .oc-line-in  { color: var(--oc-console-in); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Flow Graph - Hierarchical Decision Tree UI
-   ───────────────────────────────────────────────────────────────────────────── */
 
-/* Container for each file's flow graph */
+
+
 .oc-flow-graph-container {
   border: 1px solid var(--oc-border);
   border-radius: 12px;
@@ -505,7 +503,7 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* File header */
+
 .oc-flow-graph-header {
   display: flex;
   align-items: center;
@@ -538,7 +536,7 @@ html, body, #root {
   color: var(--oc-muted);
 }
 
-/* Flow graph shell */
+
 .oc-flow-graph-shell {
   border-radius: 0 0 12px 12px;
   background:
@@ -549,7 +547,7 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* Custom Flow Node Styles */
+
 .oc-flow-node {
   position: relative;
   width: 180px;
@@ -583,7 +581,7 @@ html, body, #root {
   border-color: var(--node-color, var(--oc-primary-500));
 }
 
-/* Decision node (diamond shape effect) */
+
 .oc-flow-node-decision {
   border-radius: 4px;
   transform: rotate(0deg);
@@ -603,19 +601,19 @@ html, body, #root {
   border-bottom: none;
 }
 
-/* Loop node indicator */
+
 .oc-flow-node-loop {
   border-style: dashed;
 }
 
-/* Inner content */
+
 .oc-flow-node-inner {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
 
-/* Icon badge */
+
 .oc-flow-node-badge {
   flex-shrink: 0;
   display: flex;
@@ -628,7 +626,7 @@ html, body, #root {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Content area */
+
 .oc-flow-node-content {
   flex: 1;
   min-width: 0;
@@ -662,7 +660,7 @@ html, body, #root {
   font-family: ui-monospace, monospace;
 }
 
-/* Branch indicators for decision nodes */
+
 .oc-flow-node-branches {
   position: absolute;
   bottom: -6px;
@@ -693,7 +691,7 @@ html, body, #root {
   color: white;
 }
 
-/* Loop indicator */
+
 .oc-flow-node-loop-indicator {
   position: absolute;
   top: -8px;
@@ -703,7 +701,7 @@ html, body, #root {
   padding: 2px;
 }
 
-/* Flow handles */
+
 .oc-flow-handle {
   width: 10px !important;
   height: 10px !important;
@@ -726,7 +724,7 @@ html, body, #root {
   bottom: -5px !important;
 }
 
-/* ReactFlow overrides for custom nodes */
+
 .oc-flow-graph-shell .react-flow__node {
   padding: 0;
   border-radius: 0;
@@ -757,7 +755,7 @@ html, body, #root {
   }
 }
 
-/* Controls styling */
+
 .oc-flow-controls {
   background: var(--oc-surface) !important;
   border: 1px solid var(--oc-border) !important;
@@ -783,7 +781,7 @@ html, body, #root {
   background: var(--oc-surface-2) !important;
 }
 
-/* Edge labels */
+
 .oc-flow-graph-shell .react-flow__edge-text {
   font-size: 10px;
   font-weight: 600;
@@ -794,28 +792,26 @@ html, body, #root {
   fill-opacity: 0.95;
 }
 
-/* Minimap (if enabled) */
+
 .oc-flow-graph-shell .react-flow__minimap {
   background: var(--oc-surface) !important;
   border: 1px solid var(--oc-border) !important;
   border-radius: 8px !important;
 }
 
-/* Attribution hidden */
+
 .oc-flow-graph-shell .react-flow__attribution {
   display: none !important;
 }
 
-/* Background pattern */
+
 .oc-flow-graph-shell .react-flow__background {
   opacity: 0.5;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Execution Trace - Vertical Line-by-Line Flow Visualization
-   ───────────────────────────────────────────────────────────────────────────── */
 
-/* Empty state */
+
+
 .oc-exec-empty {
   display: flex;
   flex-direction: column;
@@ -826,14 +822,14 @@ html, body, #root {
   text-align: center;
 }
 
-/* Main trace container */
+
 .oc-exec-trace {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-/* Trace header */
+
 .oc-exec-trace-header {
   display: flex;
   align-items: center;
@@ -856,7 +852,7 @@ html, body, #root {
   border: 1px solid var(--oc-border);
 }
 
-/* Steps container */
+
 .oc-exec-trace-steps {
   flex: 1;
   display: flex;
@@ -866,7 +862,7 @@ html, body, #root {
   padding-left: 8px;
 }
 
-/* Individual execution step */
+
 .oc-exec-step {
   position: relative;
   display: flex;
@@ -905,7 +901,7 @@ html, body, #root {
     0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Vertical connector line between steps */
+
 .oc-exec-connector {
   position: absolute;
   top: 100%;
@@ -920,7 +916,7 @@ html, body, #root {
   z-index: 1;
 }
 
-/* Step number indicator */
+
 .oc-exec-step-num {
   position: absolute;
   left: -32px;
@@ -945,7 +941,7 @@ html, body, #root {
   border-color: var(--step-color, var(--oc-primary-500));
 }
 
-/* Indented content wrapper */
+
 .oc-exec-step-indent {
   display: flex;
   align-items: flex-start;
@@ -954,7 +950,7 @@ html, body, #root {
   min-width: 0;
 }
 
-/* Node circle with icon */
+
 .oc-exec-step-node {
   flex-shrink: 0;
   display: flex;
@@ -967,7 +963,7 @@ html, body, #root {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-/* Step content area */
+
 .oc-exec-step-content {
   flex: 1;
   min-width: 0;
@@ -976,7 +972,7 @@ html, body, #root {
   gap: 4px;
 }
 
-/* Header line with function context and line number */
+
 .oc-exec-step-header {
   display: flex;
   align-items: center;
@@ -984,7 +980,7 @@ html, body, #root {
   flex-wrap: wrap;
 }
 
-/* Function context badge */
+
 .oc-exec-step-func {
   display: inline-flex;
   align-items: center;
@@ -997,7 +993,7 @@ html, body, #root {
   border-radius: 4px;
 }
 
-/* Call/Return badges */
+
 .oc-exec-step-badge {
   display: inline-flex;
   align-items: center;
@@ -1043,7 +1039,7 @@ html, body, #root {
   border: 1px dashed color-mix(in srgb, var(--oc-trace-import) 55%, transparent);
 }
 
-/* Location (file:line) */
+
 .oc-exec-step-loc {
   font-size: 11px;
   color: var(--oc-muted);
@@ -1064,7 +1060,7 @@ html, body, #root {
   border: 1px solid color-mix(in srgb, var(--oc-trace-import) 25%, transparent);
 }
 
-/* Code preview */
+
 .oc-exec-step-code {
   background: var(--oc-surface-2);
   border: 1px solid var(--oc-border);
@@ -1084,14 +1080,14 @@ html, body, #root {
   display: block;
 }
 
-/* Entry/Exit step styling */
+
 .oc-exec-step[data-entry="true"],
 .oc-exec-step[data-exit="true"] {
   background: color-mix(in srgb, var(--step-color, #22c55e) 8%, var(--oc-surface));
   border-style: dashed;
 }
 
-/* Loop emphasis */
+
 .oc-exec-step[data-loop="true"] {
   border-style: dashed;
   background: color-mix(in srgb, var(--oc-trace-loop) 12%, var(--oc-surface));
@@ -1114,13 +1110,13 @@ html, body, #root {
   background: color-mix(in srgb, var(--oc-trace-loop) 45%, transparent);
 }
 
-/* Branch step styling */
+
 .oc-exec-step[data-branch="true"] {
   opacity: 0.85;
   border-style: dotted;
 }
 
-/* Depth indication via left border */
+
 .oc-exec-step::before {
   content: '';
   position: absolute;
@@ -1137,7 +1133,7 @@ html, body, #root {
   opacity: 1;
 }
 
-/* Subtle left-side tree lines for depth */
+
 .oc-exec-step::after {
   content: '';
   position: absolute;
@@ -1149,7 +1145,7 @@ html, body, #root {
   border-radius: 1px;
 }
 
-/* Animation for step entry */
+
 @keyframes oc-exec-step-enter {
   from {
     opacity: 0;

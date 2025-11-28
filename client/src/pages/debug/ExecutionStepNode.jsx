@@ -60,24 +60,18 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
       data-import={isImport ? 'true' : undefined}
       data-import-usage={isImportUsage ? 'true' : undefined}
     >
-      {/* Vertical connector line */}
       {index < totalSteps - 1 && (
         <div className="oc-exec-connector" style={{ left: `calc(20px + ${indentPx}px)` }} />
       )}
       
-      {/* Step number */}
       <div className="oc-exec-step-num">{index + 1}</div>
       
-      {/* Indented content wrapper */}
       <div className="oc-exec-step-indent" style={{ paddingLeft: `${indentPx}px` }}>
-        {/* Node circle with icon */}
         <div className="oc-exec-step-node" style={{ background: color }}>
           <Icon name={iconName} className="size-3.5" strokeWidth={2.5} />
         </div>
         
-        {/* Step content */}
         <div className="oc-exec-step-content">
-          {/* Header: function context + line number */}
           <div className="oc-exec-step-header">
             {showFuncLabel && (
               <span className="oc-exec-step-func">
@@ -123,7 +117,6 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
             )}
           </div>
           
-          {/* Code preview */}
           {code && (
             <div className="oc-exec-step-code">
               <code>{code}</code>
