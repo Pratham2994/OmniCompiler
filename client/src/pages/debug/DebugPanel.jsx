@@ -34,8 +34,22 @@ export default function DebugPanel({
   setStdinLine,
   sendStdin,
   waitingForInput,
+  onContinue,
+  onStepOver,
+  onStepIn,
+  onStepOut,
+  stackFrames,
+  localsView,
+  pausedLocation,
+  sessionPhase,
+  statusMessage,
+  exceptionInfo,
+  awaitingPrompt,
 }) {
   const traceScrollRef = useRef(null)
+  const stdinPlaceholder = waitingForInput
+    ? (awaitingPrompt?.trim() || 'Program is requesting input…')
+    : (running ? 'Waiting for program to request input…' : 'Start debugging to send stdin')
 
   const renderTraceBody = () => {
     if (effectiveLanguage === 'plaintext') {
@@ -163,71 +177,133 @@ export default function DebugPanel({
 
       <div className="flex-1 min-h-0 p-3 flex flex-col">
         {debugTab === 'bpvars' && (
-          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Breakpoints</div>
-                <div className="text-[11px] text-[var(--oc-muted)]">
-                  Click the gutter or press F9.
+          <div className="flex-1 min-h-0 flex flex-col gap-3 text-sm">
+            <div
+              className="bg-[var(--oc-surface-2)] rounded p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+              style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
+            >
+              <div className="flex flex-col gap-1">
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Debugger Controls</div>
+                <div className="inline-flex items-center gap-2 text-[11px] text-[var(--oc-muted)]">
+                  <span className="px-2 py-0.5 rounded-full border border-[var(--oc-border)] bg-[var(--oc-surface)] text-[var(--oc-primary-200)]">
+                    {statusMessage || sessionPhase}
+                  </span>
+                  {waitingForInput && <span className="text-[var(--oc-warning-300)]">Awaiting input…</span>}
                 </div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                {breakpoints.length === 0 ? (
-                  <div className="text-[var(--oc-muted)]">No breakpoints yet. Click in the gutter (left of the line numbers)</div>
-                ) : (
-                  <ul className="space-y-1">
-                    {breakpoints.map(bp => (
-                      <li key={bp.id} className="flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-[var(--oc-surface)]">
-                        <div className="min-w-0 truncate">
-                          <span className="font-medium">{bp.fileName}</span>
-                          <span className="opacity-70"> :{bp.line}</span>
-                          {bp.condition ? <span className="ml-2 text-[var(--oc-muted)]">if {bp.condition}</span> : null}
-                        </div>
-                        <button
-                          className="oc-icon-btn"
-                          onClick={() => removeBreakpoint(bp.id)}
-                          aria-label={`Remove breakpoint at ${bp.fileName}:${bp.line}`}
-                          title="Remove"
-                        >
-                          <Icon name="trash" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {pausedLocation?.fileName && (
+                  <div className="text-[11px] text-[var(--oc-warning-300)]">
+                    Paused at {pausedLocation.fileName}:{pausedLocation.line}
+                  </div>
                 )}
+                {exceptionInfo?.message && (
+                  <div className="text-[11px] text-[var(--oc-danger)]">
+                    Exception: {exceptionInfo.message}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="oc-btn" onClick={onContinue} disabled={!running} title="Continue / Resume">
+                  <Icon name="play" /> Continue
+                </button>
+                <button className="oc-btn" onClick={onStepOver} disabled={!running} title="Step over">
+                  Next
+                </button>
+                <button className="oc-btn" onClick={onStepIn} disabled={!running} title="Step into">
+                  Step In
+                </button>
+                <button className="oc-btn" onClick={onStepOut} disabled={!running} title="Step out">
+                  Step Out
+                </button>
+                <button className="oc-icon-btn" onClick={stopDebugSession} disabled={!running} title="Stop debugger">
+                  <Icon name="stop" />
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2 gap-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
-              <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Variables</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Breakpoints</div>
+                  <div className="text-[11px] text-[var(--oc-muted)]">
+                    Click the gutter or press F9.
+                  </div>
                 </div>
                 <div className="flex-1 min-h-0 overflow-auto">
-                  <div className="text-[var(--oc-muted)]">
-                    No active debug session. Variables will appear here when you start debugging.
-                  </div>
-                  <ul className="mt-2 font-mono text-xs space-y-1">
-                    <li>// locals: --</li>
-                    <li>// globals: --</li>
-                  </ul>
+                  {breakpoints.length === 0 ? (
+                    <div className="text-[var(--oc-muted)]">No breakpoints yet. Click in the gutter (left of the line numbers)</div>
+                  ) : (
+                    <ul className="space-y-1">
+                      {breakpoints.map(bp => (
+                        <li key={bp.id} className="flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-[var(--oc-surface)]">
+                          <div className="min-w-0 truncate">
+                            <span className="font-medium">{bp.fileName}</span>
+                            <span className="opacity-70"> :{bp.line}</span>
+                            {bp.condition ? <span className="ml-2 text-[var(--oc-muted)]">if {bp.condition}</span> : null}
+                          </div>
+                          <button
+                            className="oc-icon-btn"
+                            onClick={() => removeBreakpoint(bp.id)}
+                            aria-label={`Remove breakpoint at ${bp.fileName}:${bp.line}`}
+                            title="Remove"
+                          >
+                            <Icon name="trash" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
 
-              <div className="h-px bg-[var(--oc-border)] opacity-50" aria-hidden="true" />
-
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Call Stack</div>
-                </div>
-                <div className="flex-1 min-h-0 overflow-auto">
-                  <div className="text-[var(--oc-muted)]">
-                    Stack frames will appear here when a debug session is active.
+              <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2 gap-3" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Variables</div>
                   </div>
-                  <ul className="mt-2 font-mono text-xs space-y-1">
-                    <li>// frame[0]: --</li>
-                    <li>// frame[1]: --</li>
-                  </ul>
+                  <div className="flex-1 min-h-0 overflow-auto space-y-1">
+                    {localsView.length === 0 ? (
+                      <div className="text-[var(--oc-muted)]">No locals captured yet.</div>
+                    ) : (
+                      localsView.map((item, idx) => (
+                        <div
+                          key={`${item.name}-${idx}`}
+                          className="rounded border border-[var(--oc-border)] bg-[var(--oc-surface)] px-2 py-1 flex flex-col"
+                        >
+                          <div className="flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-[var(--oc-primary-200)]">{item.name}</span>
+                            <span className="text-[var(--oc-muted)] opacity-70">local</span>
+                          </div>
+                          <div className="font-mono text-xs text-[var(--oc-muted)] break-all leading-tight">{item.value}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="h-px bg-[var(--oc-border)] opacity-50" aria-hidden="true" />
+
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Call Stack</div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto space-y-2">
+                    {stackFrames.length === 0 ? (
+                      <div className="text-[var(--oc-muted)]">No stack frames yet.</div>
+                    ) : (
+                      stackFrames.map((frame, idx) => (
+                        <div
+                          key={`${frame.file}-${frame.line}-${idx}`}
+                          className={`rounded border px-2 py-1 text-xs font-mono ${idx === 0 ? 'border-[var(--oc-primary-600)] bg-[var(--oc-primary-600)]/10 text-[var(--oc-primary-200)]' : 'border-[var(--oc-border)] bg-[var(--oc-surface)] text-[var(--oc-muted)]'}`}
+                        >
+                          <div className="flex items-center justify-between gap-2 font-semibold">
+                            <span>#{idx} {frame.functionName || 'anonymous'}</span>
+                            <span>{frame.fileName}:{frame.line}</span>
+                          </div>
+                          <div className="text-[11px] opacity-80">{frame.file}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -306,31 +382,38 @@ export default function DebugPanel({
                 })
               )}
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="text"
-                value={stdinLine}
-                onChange={(e) => setStdinLine(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    sendStdin()
-                  }
-                }}
-                placeholder="Type input and press Enter..."
-                className="flex-1 oc-input font-mono text-xs"
-                disabled={!running || !waitingForInput}
-                aria-label="Program input"
-              />
-              <button
-                className="oc-btn"
-                disabled={!running || !stdinLine || !waitingForInput}
-                onClick={sendStdin}
-                aria-label="Send input"
-                title="Send to stdin"
-              >
-                Send
-              </button>
+            <div className="mt-2 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={stdinLine}
+                  onChange={(e) => setStdinLine(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      sendStdin()
+                    }
+                  }}
+                  placeholder={stdinPlaceholder}
+                  className={`flex-1 oc-input font-mono text-xs ${waitingForInput ? 'ring-2 ring-[var(--oc-primary-600)]' : ''}`}
+                  disabled={!running || !waitingForInput}
+                  aria-label="Program input"
+                />
+                <button
+                  className="oc-btn"
+                  disabled={!running || !stdinLine || !waitingForInput}
+                  onClick={sendStdin}
+                  aria-label="Send input"
+                  title="Send to stdin"
+                >
+                  Send
+                </button>
+              </div>
+              <div className="text-[11px] text-[var(--oc-muted)]">
+                {waitingForInput
+                  ? (awaitingPrompt?.trim() ? `Waiting for input: ${awaitingPrompt.trim()}` : 'Debugger paused until you provide stdin.')
+                  : 'Input is enabled once your program requests it.'}
+              </div>
             </div>
           </div>
         )}
