@@ -398,6 +398,20 @@ html, body, #root {
   background-color: rgba(239, 68, 68, 0.12);
 }
 
+.monaco-editor .oc-editor-line-paused {
+  background-color: rgba(250, 204, 21, 0.18) !important;
+}
+
+.monaco-editor .oc-editor-glyph-paused {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(250, 204, 21, 0.9);
+  box-shadow: 0 0 0 1px var(--oc-bg);
+  margin: 3px auto;
+}
+
+
 /* Monaco Find widget — minimal, sane alignment and spacing (cleaned up) */
 .monaco-editor .find-widget { transition: none !important; }
 .monaco-editor .find-widget .monaco-findInput { margin-right: 8px !important; }

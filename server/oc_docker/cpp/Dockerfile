@@ -12,9 +12,7 @@ RUN useradd -m runner
 # Ensure `python` is available (shim uses python)
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-# Enable libstdc++ pretty-printers for nicer STL display in gdb
-RUN printf "python\nimport sys\nsys.path.insert(0, '/usr/share/gcc-12/python')\ntry:\n    from libstdcxx.v6.printers import register_libstdcxx_printers\n    register_libstdcxx_printers(None)\nexcept Exception as e:\n    print('libstdc++ printers not loaded:', e)\nend\n" > /home/runner/.gdbinit && \
-    chown runner:runner /home/runner/.gdbinit
+# The GDB pretty-printers part has been removed as requested.
 
 ENV PYTHONUNBUFFERED=1
 

@@ -9,12 +9,12 @@ import DebugPanel from './debug/DebugPanel.jsx'
 import SettingsModal from './debug/SettingsModal.jsx'
 import QuickOpenModal from './debug/QuickOpenModal.jsx'
 import useFocusTrap from './debug/useFocusTrap.js'
-import useDebugRunner from './debug/useDebugRunner.js'
 import useExecutionTrace from './debug/useCodeTree.js'
 import useMonacoEditor from './debug/useMonacoEditor.js'
 import { typeColor, typeLegend } from './debug/executionTrace.js'
 import { stripExtension } from './debug/traceUtils.js'
 import { extForLang } from './debug/parseTrees.js'
+import { DebugProvider, useDebugContext } from '../context/DebugContext.jsx'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -55,8 +55,6 @@ const readFreshSnapshot = () => {
   }
 }
 
-const BP_LS_KEY = 'oc_debug_breakpoints_v1'
-
 export default function Debug() {
   const THEME_MAP = {
     'vscode-dark-plus': { rootClass: ['theme-dark', 'dark'], monaco: 'vs-dark' },
@@ -81,6 +79,7 @@ export default function Debug() {
     startPollingForFile,
     stopPollingForFile,
     apiBase,
+    version: languageVersion,
   } = useLanguage()
 
   const [files, setFiles] = useState(() => {
@@ -253,8 +252,35 @@ export default function Debug() {
     editorReady,
   } = useMonacoEditor({ activeFile, activeFileId, effectiveLanguage, theme, setFiles, filesLength: files.length })
 
-  const breakpointDecorationsRef = useRef([])
+  const persistEditorModels = useCallback(() => {
+    setFiles(prev => prev.map(file => {
+      const model = modelsRef.current?.get(file.id)
+      if (!model || typeof model.getValue !== 'function') return file
+      const nextContent = String(model.getValue() ?? '')
+      if (nextContent === file.content) return file
+      return { ...file, content: nextContent }
+    }))
+  }, [setFiles])
 
+  const nameWithExt = useCallback((f, fallbackLang) => {
+    const resolvedLang = getEffectiveLanguage(f.id) || fallbackLang || 'plaintext'
+    const ext = extForLang(resolvedLang)
+    return ext ? `${f.name}.${ext}` : f.name
+  }, [getEffectiveLanguage])
+
+
+
+  const fileMetas = useMemo(() => (
+    files.map(file => {
+      const lang = getEffectiveLanguage(file.id)
+      return {
+        fileId: file.id,
+        fileName: file.name,
+        filePath: nameWithExt(file, effectiveLanguage),
+        language: lang,
+      }
+    })
+  ), [files, languageVersion, nameWithExt, effectiveLanguage])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsTrapRef = useFocusTrap(settingsOpen)
@@ -328,85 +354,6 @@ export default function Debug() {
   }
 
   const [debugTab, setDebugTab] = useState('bpvars')
-  const [breakpoints, setBreakpoints] = useState(() => {
-    try {
-      const raw = localStorage.getItem(BP_LS_KEY)
-      if (!raw) return []
-      const arr = JSON.parse(raw)
-      return Array.isArray(arr) ? arr.slice(0, 128) : []
-    } catch { return [] }
-  })
-  useEffect(() => {
-    try { localStorage.setItem(BP_LS_KEY, JSON.stringify(breakpoints)) } catch {}
-  }, [breakpoints])
-
-  const toggleBreakpointAtLine = useCallback((fileId, maybeLine) => {
-    if (!fileId) return
-    const line = Math.max(1, Number(maybeLine) || 1)
-    const id = `${fileId}:${line}`
-    setBreakpoints(prev => {
-      if (prev.some(b => b.id === id)) {
-        return prev.filter(b => b.id !== id)
-      }
-      const file = files.find(f => f.id === fileId)
-      const item = { id, fileId, fileName: file?.name || 'main', line, condition: '' }
-      return [...prev, item].slice(0, 128)
-    })
-  }, [files])
-
-
-  useEffect(() => {
-    if (!editorReady) return
-    const editor = editorRef.current
-    const monaco = monacoRef.current
-    if (!editor || !monaco) return
-    const mouseTargetType = monaco.editor?.MouseTargetType
-    if (!mouseTargetType) return
-    const disposable = editor.onMouseDown((e) => {
-      const targetType = e.target?.type
-      if (
-        targetType === mouseTargetType.GUTTER_GLYPH_MARGIN ||
-        targetType === mouseTargetType.GUTTER_LINE_NUMBERS ||
-        targetType === mouseTargetType.GUTTER_LINE_DECORATIONS
-      ) {
-        const lineNumber =
-          e.target?.position?.lineNumber ??
-          e.target?.range?.startLineNumber ??
-          e.target?.detail?.viewPosition?.lineNumber
-        if (lineNumber) {
-          toggleBreakpointAtLine(activeFileId, lineNumber)
-        }
-      }
-    })
-    return () => disposable.dispose()
-  }, [editorReady, toggleBreakpointAtLine, activeFileId])
-
-  useEffect(() => {
-    if (!editorReady) return
-    const editor = editorRef.current
-    const monaco = monacoRef.current
-    if (!editor || !monaco) return
-    const activeDecorations = breakpoints
-      .filter(bp => bp.fileId === activeFileId)
-      .map(bp => ({
-        range: new monaco.Range(bp.line, 1, bp.line, 1),
-        options: {
-          isWholeLine: false,
-          glyphMarginClassName: 'oc-breakpoint-glyph',
-          linesDecorationsClassName: 'oc-breakpoint-line',
-        },
-      }))
-    breakpointDecorationsRef.current = editor.deltaDecorations(
-      breakpointDecorationsRef.current,
-      activeDecorations,
-    )
-  }, [breakpoints, activeFileId, editorReady])
-  const addBreakpointAtCursor = useCallback(() => {
-    if (!activeFileId || !activeFile) return
-    toggleBreakpointAtLine(activeFileId, cursorPos?.line || 1)
-  }, [activeFileId, activeFile, cursorPos?.line, toggleBreakpointAtLine])
-  const removeBreakpoint = (bpId) => setBreakpoints(prev => prev.filter(b => b.id !== bpId))
-  const clearBreakpoints = () => setBreakpoints([])
 
   const [quickOpen, setQuickOpen] = useState(false)
   const quickTrapRef = useFocusTrap(quickOpen)
@@ -448,6 +395,7 @@ export default function Debug() {
   const editorCompact = !outputCollapsed && splitRatio < 0.28
 
   useEffect(() => {
+    if (!monacoReady) return
     const editor = editorRef.current
     if (!editor || !activeFileId) return
     if (autoDetect) {
@@ -456,7 +404,8 @@ export default function Debug() {
       stopPollingForFile(activeFileId)
     }
     return () => { stopPollingForFile(activeFileId) }
-  }, [autoDetect, monacoReady, activeFileId, startPollingForFile, stopPollingForFile, editorRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDetect, monacoReady, activeFileId])
 
   function getActiveCode() {
     try {
@@ -475,12 +424,6 @@ export default function Debug() {
     return String(file.content ?? '')
   }
 
-  const nameWithExt = (f, fallbackLang) => {
-    const fl = getEffectiveLanguage(f.id) || fallbackLang || 'plaintext'
-    const ext = extForLang(fl)
-    return ext ? `${f.name}.${ext}` : f.name
-  }
-
   const buildCfgRequest = () => {
     const entryId = activeFileId
     const entryFile = files.find(f => f.id === entryId) || activeFile
@@ -495,48 +438,6 @@ export default function Debug() {
 
   const buildDebugRunRequest = () => ({ ...buildCfgRequest(), args: [] })
 
-  const {
-    outputLog,
-    running,
-    stdinLine,
-    setStdinLine,
-    waitingForInput,
-    runProgram,
-    stopDebugSession,
-    onClearOutput,
-    sendStdin,
-  } = useDebugRunner({
-    apiBase,
-    getEffectiveLanguage,
-    activeFileId,
-    activeFile,
-    editorRef,
-    setFiles,
-    buildDebugRunRequest,
-    setDebugTab,
-    triggerToast,
-  })
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault()
-        if (running) { stopDebugSession() } else { runProgram() }
-        return
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p')) {
-        e.preventDefault()
-        setQuickOpen(true)
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f')) {
-        const ed = editorRef.current
-        if (ed) { e.preventDefault(); ed.getAction('actions.find')?.run() }
-      }
-      if (e.key === 'F9') { e.preventDefault(); addBreakpointAtCursor() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [cursorPos, activeFileId, activeFile, running, editorRef, stopDebugSession, runProgram, addBreakpointAtCursor])
 
   const {
     executionTrace,
@@ -563,13 +464,40 @@ export default function Debug() {
   })
 
   return (
-    <div className="h-screen w-screen">
-      <a
-        href="#editor-pane"
-        className="sr-only focus:not-sr-only absolute top-1 left-1 z-50 bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)]"
-      >
-        Skip to editor
-      </a>
+    <DebugProvider
+      apiBase={apiBase}
+      fileMetas={fileMetas}
+      activeFileId={activeFileId}
+      buildDebugRunRequest={buildDebugRunRequest}
+      persistModels={persistEditorModels}
+      setDebugTab={setDebugTab}
+    >
+      <DebugHotkeys
+        activeFileId={activeFileId}
+        cursorLine={cursorPos?.line}
+        editorRef={editorRef}
+        setQuickOpen={setQuickOpen}
+      />
+      <BreakpointGutterBinding
+        editorRef={editorRef}
+        monacoRef={monacoRef}
+        editorReady={editorReady}
+        activeFileId={activeFileId}
+      />
+      <BreakpointDecorations
+        editorRef={editorRef}
+        monacoRef={monacoRef}
+        editorReady={editorReady}
+        activeFileId={activeFileId}
+      />
+
+      <div className="h-screen w-screen">
+        <a
+          href="#editor-pane"
+          className="sr-only focus:not-sr-only absolute top-1 left-1 z-50 bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)]"
+        >
+          Skip to editor
+        </a>
 
       <DebugHeader settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} />
 
@@ -596,7 +524,7 @@ export default function Debug() {
         />
 
         <div id="oc-workspace" className="absolute inset-0 flex">
-          <EditorPane
+          <EditorPaneContainer
             editorWidthStyle={editorWidthStyle}
             workspaceW={workspaceW}
             editorBasisPx={editorBasisPx}
@@ -629,19 +557,13 @@ export default function Debug() {
 
           <AnimatePresence initial={false}>
             {!outputCollapsed && (
-              <DebugPanel
+              <DebugPanelContainer
                 workspaceW={workspaceW}
                 outputWidthStyle={outputWidthStyle}
                 outputBasisPx={outputBasisPx}
                 debugTab={debugTab}
                 setDebugTab={setDebugTab}
-                running={running}
-                stopDebugSession={stopDebugSession}
-                runProgram={runProgram}
-                clearBreakpoints={clearBreakpoints}
                 toggleOutputCollapsed={toggleOutputCollapsed}
-                breakpoints={breakpoints}
-                removeBreakpoint={removeBreakpoint}
                 effectiveLanguage={effectiveLanguage}
                 languageLabel={languageLabel}
                 generateTrace={generateTrace}
@@ -654,12 +576,6 @@ export default function Debug() {
                 onTraceStepClick={handleStepClick}
                 typeLegend={typeLegend}
                 typeColor={typeColor}
-                outputLog={outputLog}
-                onClearOutput={onClearOutput}
-                stdinLine={stdinLine}
-                setStdinLine={setStdinLine}
-                sendStdin={sendStdin}
-                waitingForInput={waitingForInput}
               />
             )}
           </AnimatePresence>
@@ -717,5 +633,188 @@ export default function Debug() {
         )}
       </AnimatePresence>
     </div>
+    </DebugProvider>
+  )
+}
+
+
+function DebugHotkeys({ activeFileId, cursorLine, editorRef, setQuickOpen }) {
+  const { running, runDebugSession, stopDebugSession, toggleBreakpoint } = useDebugContext()
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        if (running) {
+          stopDebugSession()
+        } else {
+          runDebugSession()
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        setQuickOpen(true)
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        const ed = editorRef.current
+        if (ed) {
+          e.preventDefault()
+          ed.getAction('actions.find')?.run()
+        }
+        return
+      }
+      if (e.key === 'F9') {
+        e.preventDefault()
+        toggleBreakpoint(activeFileId, cursorLine || 1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeFileId, cursorLine, editorRef, running, runDebugSession, stopDebugSession, toggleBreakpoint, setQuickOpen])
+  return null
+}
+
+function BreakpointGutterBinding({ editorRef, monacoRef, editorReady, activeFileId }) {
+  const { toggleBreakpoint } = useDebugContext()
+  useEffect(() => {
+    if (!editorReady) return
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const mouseTargetType = monaco.editor?.MouseTargetType
+    if (!mouseTargetType) return
+    const disposable = editor.onMouseDown((e) => {
+      const targetType = e.target?.type
+      if (
+        targetType === mouseTargetType.GUTTER_GLYPH_MARGIN ||
+        targetType === mouseTargetType.GUTTER_LINE_NUMBERS ||
+        targetType === mouseTargetType.GUTTER_LINE_DECORATIONS
+      ) {
+        const lineNumber =
+          e.target?.position?.lineNumber ??
+          e.target?.range?.startLineNumber ??
+          e.target?.detail?.viewPosition?.lineNumber
+        if (lineNumber) toggleBreakpoint(activeFileId, lineNumber)
+      }
+    })
+    return () => disposable.dispose()
+  }, [editorReady, editorRef, monacoRef, activeFileId, toggleBreakpoint])
+  return null
+}
+
+function BreakpointDecorations({ editorRef, monacoRef, editorReady, activeFileId }) {
+  const { breakpoints, pausedLocation } = useDebugContext()
+  const bpDecorRef = useRef([])
+  const pausedDecorRef = useRef([])
+
+  useEffect(() => {
+    if (!editorReady) return
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const activeDecorations = breakpoints
+      .filter(bp => bp.fileId === activeFileId)
+      .map(bp => ({
+        range: new monaco.Range(bp.line, 1, bp.line, 1),
+        options: {
+          isWholeLine: false,
+          glyphMarginClassName: 'oc-breakpoint-glyph',
+          linesDecorationsClassName: 'oc-breakpoint-line',
+        },
+      }))
+    bpDecorRef.current = editor.deltaDecorations(bpDecorRef.current, activeDecorations)
+  }, [breakpoints, activeFileId, editorReady, editorRef, monacoRef])
+
+  useEffect(() => {
+    if (!editorReady) return
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const sameFile = pausedLocation?.fileId && pausedLocation.fileId === activeFileId
+    if (!pausedLocation || !sameFile) {
+      pausedDecorRef.current = editor.deltaDecorations(pausedDecorRef.current, [])
+      return
+    }
+    const decorations = [{
+      range: new monaco.Range(pausedLocation.line, 1, pausedLocation.line, 1),
+      options: {
+        isWholeLine: true,
+        className: 'oc-editor-line-paused',
+        glyphMarginClassName: 'oc-editor-glyph-paused',
+      },
+    }]
+    pausedDecorRef.current = editor.deltaDecorations(pausedDecorRef.current, decorations)
+  }, [pausedLocation, activeFileId, editorReady, editorRef, monacoRef])
+
+  return null
+}
+
+function EditorPaneContainer(props) {
+  const { pausedLocation, sessionPhase } = useDebugContext()
+  return (
+    <EditorPane
+      {...props}
+      pausedLocation={pausedLocation}
+      sessionPhase={sessionPhase}
+    />
+  )
+}
+
+function DebugPanelContainer(props) {
+  const {
+    breakpoints,
+    clearBreakpoints,
+    removeBreakpoint,
+    running,
+    stopDebugSession,
+    runDebugSession,
+    continueExecution,
+    stepOver,
+    stepIn,
+    stepOut,
+    outputLog,
+    onClearOutput,
+    stdinLine,
+    setStdinLine,
+    sendStdin,
+    waitingForInput,
+    stackFrames,
+    localsView,
+    pausedLocation,
+    sessionPhase,
+    statusMessage,
+    exceptionInfo,
+    awaitingPrompt,
+  } = useDebugContext()
+
+  return (
+    <DebugPanel
+      {...props}
+      running={running}
+      stopDebugSession={stopDebugSession}
+      runProgram={runDebugSession}
+      clearBreakpoints={clearBreakpoints}
+      toggleOutputCollapsed={props.toggleOutputCollapsed}
+      breakpoints={breakpoints}
+      removeBreakpoint={removeBreakpoint}
+      outputLog={outputLog}
+      onClearOutput={onClearOutput}
+      stdinLine={stdinLine}
+      setStdinLine={setStdinLine}
+      sendStdin={sendStdin}
+      waitingForInput={waitingForInput}
+      onContinue={continueExecution}
+      onStepOver={stepOver}
+      onStepIn={stepIn}
+      onStepOut={stepOut}
+      stackFrames={stackFrames}
+      localsView={localsView}
+      pausedLocation={pausedLocation}
+      sessionPhase={sessionPhase}
+      statusMessage={statusMessage}
+      exceptionInfo={exceptionInfo}
+      awaitingPrompt={awaitingPrompt}
+    />
   )
 }

@@ -39,3 +39,4 @@ ENV NODE_OPTIONS="--require /opt/prompt-shim.js"
 RUN useradd -m runner
 WORKDIR /work
 USER runner
+#### docker build -t omni-runner:javascript ./javascript/

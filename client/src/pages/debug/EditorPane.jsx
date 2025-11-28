@@ -16,6 +16,8 @@ export default function EditorPane({
   activeFileName,
   onToggleFilesDrawer,
   filesDrawerOpen,
+  pausedLocation,
+  sessionPhase,
 }) {
   return (
     <motion.section
@@ -32,6 +34,12 @@ export default function EditorPane({
             <span aria-hidden="true">/</span>
             <span className="text-[var(--oc-fg)] truncate">{activeFileName || 'main'}</span>
           </nav>
+          {pausedLocation?.fileName && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--oc-surface-2)] text-[var(--oc-warning-300)] text-xs font-medium">
+              <Icon name="pause" className="size-3" />
+              Paused {pausedLocation.fileName}:{pausedLocation.line}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onToggleFilesDrawer?.()}
@@ -78,9 +86,13 @@ export default function EditorPane({
       <div className="h-7 shrink-0 px-3 border-t border-[var(--oc-border)] text-[11px] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span id="cursorPos">Ln {cursorPos.line}, Col {cursorPos.column}</span>
+          {pausedLocation?.fileName && (
+            <span className="text-[var(--oc-warning-300)]">↦ {pausedLocation.fileName}:{pausedLocation.line}</span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span id="modeIndicator">Mode: Debug</span>
+          <span id="statusIndicator">Status: {sessionPhase || 'idle'}</span>
           <span id="langIndicator">{languageLabel(effectiveLanguage)} {autoDetect ? '(auto)' : '(manual)'}</span>
           <span id="encoding">UTF-8</span>
           <span id="indent">Spaces: 4</span>
