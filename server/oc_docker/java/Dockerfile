@@ -3,7 +3,7 @@ FROM eclipse-temurin:21-jdk-jammy
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl unzip \
+      ca-certificates curl unzip python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Safe, commonly useful libraries (standalone jars) ----
@@ -35,6 +35,8 @@ ENV CLASSPATH=${LIB_DIR}/*:.
 RUN useradd -m runner
 WORKDIR /work
 USER runner
+
+ENV PYTHONUNBUFFERED=1
 
 # Example:
 # docker build -t omni-runner:java -f server/docker/Dockerfile.java server/docker

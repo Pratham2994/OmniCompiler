@@ -389,13 +389,13 @@ async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoin
         shutil.rmtree(workdir, ignore_errors=True)
         raise
 
-async def _prepare_java_debug_session(files: List[FileSpec], entry: str, breakpoints: list[dict]):
+async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: list[str], breakpoints: list[dict]):
     """
     Java debug mode (default package only):
       - write files to a temp dir
       - reject package declarations (not supported in current run path)
       - compile with javac
-      - start jdb on the entry class
+      - start shim (jdb + JDWP attach) on the entry class
     Returns (workdir, proc, entry_class)
     """
     if not _should_use_docker():
@@ -442,24 +442,58 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, breakpo
             msg = err or out or "javac failed"
             raise HTTPException(status_code=400, detail=msg)
 
-        jdb_cmd = [
+        # copy debugger shim
+        dbg_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_java_debugger.py"))
+        dbg_dst = os.path.join(workdir, "oc_java_debugger.py")
+        shutil.copy2(dbg_src, dbg_dst)
+
+        init_bp_env = json.dumps(
+            [{"file": bp.get("file"), "line": bp.get("line")} for bp in (breakpoints or [])],
+            separators=(",", ":"),
+        )
+        init_bp_path = os.path.join(workdir, "_oc_init_bps.json")
+        try:
+            with open(init_bp_path, "w", encoding="utf-8") as f:
+                f.write(init_bp_env)
+        except Exception:
+            init_bp_path = ""
+
+        shim_cmd = [
             "docker", "run", "--rm", "-i",
             "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
+            "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
             "-v", mount, "-w", "/work",
-            DOCKER_IMAGES["java"],
-            "jdb",
-            "-sourcepath", "/work",
-            "-classpath", "/work",
-            entry_class,
+            "-e", f"OC_INIT_BPS={init_bp_env}",
         ]
+        if init_bp_path:
+            shim_cmd.extend(["-e", f"OC_INIT_BPS_PATH={init_bp_path}"])
+        shim_cmd.extend([
+            DOCKER_IMAGES["java"],
+            "python3",
+            "-u",
+            "oc_java_debugger.py",
+            entry_class,
+            "--",
+            *list(args or []),
+        ])
 
         proc = await asyncio.create_subprocess_exec(
-            *jdb_cmd,
+            *shim_cmd,
             cwd=workdir,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
+        # Ensure shim actually started; if it exited immediately, surface error now.
+        try:
+            rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            rc = None
+        if rc is not None:
+            out, err = await proc.communicate()
+            msg = (err or out or f"java debugger exited with code {rc}").decode(errors="ignore")
+            raise HTTPException(status_code=500, detail=msg)
         return workdir, proc, entry_class
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -602,7 +636,7 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
             session["state"] = "debug-ready"
         elif lang == "java":
             try:
-                workdir, proc, entry_class = await _prepare_java_debug_session(body.files, body.entry, breakpoints)
+                workdir, proc, entry_class = await _prepare_java_debug_session(body.files, body.entry, body.args or [], breakpoints)
             except HTTPException:
                 raise
             except Exception as e:
