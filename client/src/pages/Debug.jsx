@@ -34,6 +34,8 @@ const defaultFiles = [
   { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
 
+const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
+
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
 
@@ -46,7 +48,12 @@ const readFreshSnapshot = () => {
     if ((Date.now() - data.ts) > LS_TTL_MS) return null
     const files = data.files.slice(0, 5).map((f, idx) => {
       const id = String(f?.id || `f_restored_${idx}_${Math.random().toString(36).slice(2,8)}`)
-      return { id, name: String(f?.name || `file_${idx+1}`), language: 'plaintext', content: String(f?.content || '') }
+      return {
+        id,
+        name: String(f?.name || `file_${idx+1}`),
+        language: 'plaintext',
+        content: normalizeNewlines(String(f?.content || '')),
+      }
     })
     const activeId = (data.activeId && files.find(x => x.id === data.activeId)) ? data.activeId : (files[0]?.id || null)
     return { files, activeId }
@@ -103,7 +110,8 @@ export default function Debug() {
           const m = modelsRef.current?.get(f.id)
           if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
         } catch {}
-        return { id: f.id, name: f.name, content }
+        const normalizedContent = normalizeNewlines(String(content ?? ''))
+        return { id: f.id, name: f.name, content: normalizedContent }
       }).slice(0, 5)
       const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
       localStorage.setItem(LS_KEY, JSON.stringify(payload))
@@ -256,8 +264,9 @@ export default function Debug() {
     setFiles(prev => prev.map(file => {
       const model = modelsRef.current?.get(file.id)
       if (!model || typeof model.getValue !== 'function') return file
-      const nextContent = String(model.getValue() ?? '')
-      if (nextContent === file.content) return file
+      const nextContent = normalizeNewlines(String(model.getValue() ?? ''))
+      const currentContent = normalizeNewlines(String(file.content ?? ''))
+      if (nextContent === currentContent) return file
       return { ...file, content: nextContent }
     }))
   }, [setFiles])
@@ -299,10 +308,13 @@ export default function Debug() {
   }, [settingsOpen, settingsTrapRef])
 
   const [showToast, setShowToast] = useState(null)
-  const triggerToast = (msg) => {
+  const triggerToast = useCallback((msg) => {
     setShowToast(msg)
     setTimeout(() => setShowToast(null), 1500)
-  }
+  }, [])
+  const notifyAwaitingInput = useCallback(() => {
+    triggerToast('Program is waiting for input. Provide stdin to continue.')
+  }, [triggerToast])
 
   const onNewFile = () => {
     if (files.length >= 5) { triggerToast('Max 5 files allowed'); return }
@@ -411,17 +423,17 @@ export default function Debug() {
     try {
       const ed = editorRef.current
       const model = ed?.getModel?.()
-      if (model) return String(model.getValue() || '')
+      if (model) return normalizeNewlines(String(model.getValue() || ''))
     } catch {}
-    return String(activeFile?.content || '')
+    return normalizeNewlines(String(activeFile?.content || ''))
   }
 
   const getLiveContent = (file) => {
     const m = modelsRef.current.get(file.id)
     if (m && typeof m.getValue === 'function') {
-      return String(m.getValue() ?? '')
+      return normalizeNewlines(String(m.getValue() ?? ''))
     }
-    return String(file.content ?? '')
+    return normalizeNewlines(String(file.content ?? ''))
   }
 
   const buildCfgRequest = () => {
@@ -576,6 +588,7 @@ export default function Debug() {
                 onTraceStepClick={handleStepClick}
                 typeLegend={typeLegend}
                 typeColor={typeColor}
+                onBlockedDebuggerAction={notifyAwaitingInput}
               />
             )}
           </AnimatePresence>
@@ -815,6 +828,7 @@ function DebugPanelContainer(props) {
       statusMessage={statusMessage}
       exceptionInfo={exceptionInfo}
       awaitingPrompt={awaitingPrompt}
+      onBlockedDebuggerAction={props.onBlockedDebuggerAction}
     />
   )
 }

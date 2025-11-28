@@ -52,6 +52,8 @@ const defaultFiles = [
   { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
 
+const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
+
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
 
@@ -64,7 +66,8 @@ const readFreshSnapshot = () => {
     if ((Date.now() - data.ts) > LS_TTL_MS) return null
     const files = data.files.slice(0, 5).map((f, idx) => {
       const id = String(f?.id || `f_restored_${idx}_${Math.random().toString(36).slice(2, 8)}`)
-      return { id, name: String(f?.name || `file_${idx + 1}`), language: 'plaintext', content: String(f?.content || '') }
+      const content = normalizeNewlines(String(f?.content || ''))
+      return { id, name: String(f?.name || `file_${idx + 1}`), language: 'plaintext', content }
     })
     const activeId = (data.activeId && files.find((x) => x.id === data.activeId)) ? data.activeId : (files[0]?.id || null)
     return { files, activeId }
@@ -158,10 +161,12 @@ export default function Translate() {
     if (!hydrated) return
     try {
       const filesToSave = (files || []).map((f) => {
-        let content = f.content
+        let content = normalizeNewlines(String(f.content ?? ''))
         try {
           const m = modelsRef.current?.get(f.id)
-          if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
+          if (m && typeof m.getValue === 'function') {
+            content = normalizeNewlines(String(m.getValue() ?? f.content ?? ''))
+          }
         } catch {}
         return { id: f.id, name: f.name, content }
       }).slice(0, 5)
@@ -322,7 +327,7 @@ export default function Translate() {
         m = monaco.editor.createModel(file.content, 'plaintext')
         modelsRef.current.set(file.id, m)
         m.onDidChangeContent(() => {
-          const value = m.getValue()
+          const value = normalizeNewlines(m.getValue() || '')
           setFiles((prev) => prev.map((f) => (f.id === file.id ? { ...f, content: value } : f)))
         })
       }
@@ -392,7 +397,7 @@ export default function Translate() {
       model = monaco.editor.createModel(activeFile.content, 'plaintext')
       modelsRef.current.set(activeFile.id, model)
       model.onDidChangeContent(() => {
-        const value = model.getValue()
+        const value = normalizeNewlines(model.getValue() || '')
         setFiles((prev) => prev.map((f) => (f.id === activeFile.id ? { ...f, content: value } : f)))
       })
     }
@@ -559,9 +564,9 @@ export default function Translate() {
     }
     const editor = editorRef.current
     const model = editor?.getModel()
-    let code = activeFile.content || ''
+    let code = normalizeNewlines(activeFile.content || '')
     if (model) {
-      code = model.getValue() || ''
+      code = normalizeNewlines(model.getValue() || '')
       const latest = code
       setFiles((prev) => prev.map((f) => (f.id === activeFileId ? { ...f, content: latest } : f)))
     }
@@ -667,7 +672,7 @@ export default function Translate() {
     const editor = editorRef.current
     if (!editor || !activeFileId) return
     if (autoDetect) {
-      startPollingForFile(activeFileId, () => editor.getModel()?.getValue() || '', 2000)
+      startPollingForFile(activeFileId, () => normalizeNewlines(editor.getModel()?.getValue() || ''), 2000)
     } else {
       stopPollingForFile(activeFileId)
     }

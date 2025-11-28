@@ -68,6 +68,8 @@ const defaultFiles = [
   { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
 ]
 
+const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
+
 // Ephemeral autosave (10 minutes TTL)
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
@@ -82,7 +84,12 @@ const readFreshSnapshot = () => {
     if ((Date.now() - data.ts) > LS_TTL_MS) return null
     const files = data.files.slice(0, 5).map((f, idx) => {
       const id = String(f?.id || `f_restored_${idx}_${Math.random().toString(36).slice(2,8)}`)
-      return { id, name: String(f?.name || `file_${idx+1}`), language: 'plaintext', content: String(f?.content || '') }
+      return {
+        id,
+        name: String(f?.name || `file_${idx+1}`),
+        language: 'plaintext',
+        content: normalizeNewlines(String(f?.content || '')),
+      }
     })
     const activeId = (data.activeId && files.find(x => x.id === data.activeId)) ? data.activeId : (files[0]?.id || null)
     return { files, activeId }
@@ -194,7 +201,8 @@ export default function Run() {
           const m = modelsRef.current?.get(f.id)
           if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
         } catch {}
-        return { id: f.id, name: f.name, content }
+        const normalizedContent = normalizeNewlines(String(content ?? ''))
+        return { id: f.id, name: f.name, content: normalizedContent }
       }).slice(0, 5)
       const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
       localStorage.setItem(LS_KEY, JSON.stringify(payload))
@@ -371,7 +379,8 @@ export default function Run() {
         modelsRef.current.set(file.id, m)
         m.onDidChangeContent(() => {
           const value = m.getValue()
-          setFiles(prev => prev.map(f => f.id === file.id ? { ...f, content: value } : f))
+          const normalized = normalizeNewlines(String(value ?? ''))
+          setFiles(prev => prev.map(f => f.id === file.id ? { ...f, content: normalized } : f))
         })
       }
       return m
@@ -448,7 +457,8 @@ export default function Run() {
       modelsRef.current.set(activeFile.id, model)
       model.onDidChangeContent(() => {
         const value = model.getValue()
-        setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: value } : f))
+        const normalized = normalizeNewlines(String(value ?? ''))
+        setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: normalized } : f))
       })
     }
     editor.setModel(model)
@@ -719,9 +729,10 @@ export default function Run() {
     const getLiveContent = (file) => {
       const m = modelsRef.current.get(file.id)
       if (m && typeof m.getValue === 'function') {
-        return String(m.getValue() ?? '')
+        const value = m.getValue()
+        return normalizeNewlines(String(value ?? ''))
       }
-      return String(file.content ?? '')
+      return normalizeNewlines(String(file.content ?? ''))
     }
 
     const nameWithExt = (f) => {
@@ -765,7 +776,8 @@ export default function Run() {
     const model = ed?.getModel()
     if (model && activeFileId) {
       const val = model.getValue()
-      setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, content: val } : f))
+      const normalized = normalizeNewlines(String(val ?? ''))
+      setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, content: normalized } : f))
     }
 
     // close any previous socket
