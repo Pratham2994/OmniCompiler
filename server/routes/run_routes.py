@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import uuid, re, time, asyncio, tempfile, textwrap, shutil, os, json, shlex
+import uuid, re, time, asyncio, tempfile, shutil, os, json, shlex
 
 router = APIRouter()
 
@@ -103,7 +103,7 @@ def _write_files(files: List[FileSpec], workdir: str) -> None:
     for f in files:
         path = os.path.join(workdir, f.name)
         with open(path, "w", encoding="utf-8") as fp:
-            fp.write(textwrap.dedent(f.content))
+            fp.write(f.content)
 
 async def _run_cmd(cmd: list[str], workdir: str):
     proc = await asyncio.create_subprocess_exec(

@@ -212,12 +212,17 @@ def main():
     _orig_input = builtins.input
 
     def _oc_input(prompt=""):
-        try:
-            sys.stdout.write(str(prompt))
-            sys.stdout.flush()
-        except Exception:
-            pass
-        return dbg._wait_for_input(prompt)
+        prompt_text = str(prompt)
+        if prompt_text:
+            try:
+                dbg._emit_event("output", {"stream": "stdout", "data": prompt_text})
+            except Exception:
+                try:
+                    sys.stdout.write(prompt_text)
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+        return dbg._wait_for_input(prompt_text)
 
     builtins.input = _oc_input
 
@@ -228,9 +233,13 @@ def main():
 
         code = compile(source, target_script, "exec")
 
+        builtins_mod = __import__("builtins")
         globs = {
             "__name__": "__main__",
             "__file__": target_script,
+            "__package__": None,
+            "__spec__": None,
+            "__builtins__": builtins_mod,
         }
 
         # If initial breakpoints were provided (env var), set them and do not stop at line 1.
@@ -265,7 +274,7 @@ def main():
             dbg.set_step()
 
         # Run the compiled code object under the debugger
-        dbg.run(code, globs, {})
+        dbg.run(code, globs, globs)
 
         # Let client know the program finished normally
         sys.stdout.write(json.dumps({"event": "terminated", "body": {}}) + "\n")

@@ -53,7 +53,7 @@ def _write_files(files, workdir):
     for f in files:
         path = os.path.join(workdir, f["name"])
         with open(path, "w", encoding="utf-8") as fp:
-            fp.write(textwrap.dedent(f["content"]))
+            fp.write(f["content"])
 
 async def _start_process(lang, entry, args, workdir):
     """
@@ -645,6 +645,18 @@ async def _handle_python_debug(ws: WebSocket, sess: dict):
                 elif event == "breakpoints_set":
                     try:
                         await ws.send_json({"type": "debug_event", "event": "breakpoints", "payload": {"synced": True}})
+                    except Exception:
+                        pass
+                elif event == "await_input":
+                    try:
+                        await ws.send_json({"type": "awaiting_input", "value": True, "prompt": body.get("prompt", "")})
+                    except Exception:
+                        pass
+                elif event == "output":
+                    try:
+                        stream = body.get("stream", "stdout")
+                        data = body.get("data", "")
+                        await ws.send_json({"type": "out" if stream == "stdout" else "err", "data": data})
                     except Exception:
                         pass
                 else:
@@ -2039,6 +2051,13 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                 elif event == "await_input":
                     try:
                         await ws.send_json({"type": "awaiting_input", "value": True, "prompt": body.get("prompt", "")})
+                    except Exception:
+                        pass
+                elif event == "output":
+                    try:
+                        stream = body.get("stream", "stdout")
+                        data = body.get("data", "")
+                        await ws.send_json({"type": "out" if stream == "stdout" else "err", "data": data})
                     except Exception:
                         pass
                 else:

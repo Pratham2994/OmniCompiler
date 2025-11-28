@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Icon } from '../../components/run/ui.jsx'
 import ExecutionStepNode from './ExecutionStepNode.jsx'
@@ -47,9 +47,18 @@ export default function DebugPanel({
   awaitingPrompt,
 }) {
   const traceScrollRef = useRef(null)
+  const stdinInputRef = useRef(null)
   const stdinPlaceholder = waitingForInput
-    ? (awaitingPrompt?.trim() || 'Program is requesting input…')
+    ? (awaitingPrompt?.trim() || 'Enter input for the program…')
     : (running ? 'Waiting for program to request input…' : 'Start debugging to send stdin')
+
+  useEffect(() => {
+    if (!waitingForInput) return
+    const node = stdinInputRef.current
+    if (!node) return
+    const id = requestAnimationFrame(() => node.focus())
+    return () => cancelAnimationFrame(id)
+  }, [waitingForInput])
 
   const renderTraceBody = () => {
     if (effectiveLanguage === 'plaintext') {
@@ -385,6 +394,7 @@ export default function DebugPanel({
             <div className="mt-2 flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <input
+                  ref={stdinInputRef}
                   type="text"
                   value={stdinLine}
                   onChange={(e) => setStdinLine(e.target.value)}
@@ -396,12 +406,12 @@ export default function DebugPanel({
                   }}
                   placeholder={stdinPlaceholder}
                   className={`flex-1 oc-input font-mono text-xs ${waitingForInput ? 'ring-2 ring-[var(--oc-primary-600)]' : ''}`}
-                  disabled={!running || !waitingForInput}
+                  disabled={!waitingForInput}
                   aria-label="Program input"
                 />
                 <button
                   className="oc-btn"
-                  disabled={!running || !stdinLine || !waitingForInput}
+                  disabled={!stdinLine || !waitingForInput}
                   onClick={sendStdin}
                   aria-label="Send input"
                   title="Send to stdin"
@@ -411,7 +421,7 @@ export default function DebugPanel({
               </div>
               <div className="text-[11px] text-[var(--oc-muted)]">
                 {waitingForInput
-                  ? (awaitingPrompt?.trim() ? `Waiting for input: ${awaitingPrompt.trim()}` : 'Debugger paused until you provide stdin.')
+                  ? (awaitingPrompt?.trim() ? `Waiting for input: ${awaitingPrompt.trim()}` : 'Press Enter to send input to the debugger.')
                   : 'Input is enabled once your program requests it.'}
               </div>
             </div>

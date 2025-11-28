@@ -42,3 +42,4 @@ ENV PYTHONUNBUFFERED=1
 # docker build -t omni-runner:java -f server/docker/Dockerfile.java server/docker
 # docker run --rm -it -v "$PWD/test_code:/work" omni-runner:java bash
 # javac Main.java && java Main
+#### docker build -t omni-runner:java ./java/

@@ -4,7 +4,220 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const readline = require("readline");
-const WebSocket = require("ws");
+const net = require("net");
+const crypto = require("crypto");
+const { EventEmitter } = require("events");
+let WebSocketImpl;
+try {
+  WebSocketImpl = require("ws");
+} catch (err) {
+  if (typeof globalThis.WebSocket === "function") {
+    WebSocketImpl = globalThis.WebSocket;
+  } else {
+    try {
+      const undici = require("undici");
+      if (typeof undici.WebSocket === "function") {
+        WebSocketImpl = undici.WebSocket;
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}
+
+if (!WebSocketImpl) {
+  WebSocketImpl = createShimWebSocket();
+}
+
+const nativeStyleWS =
+  WebSocketImpl &&
+  WebSocketImpl.prototype &&
+  (typeof WebSocketImpl.prototype.on === "function" || typeof WebSocketImpl.prototype.addEventListener === "function");
+
+function createWebSocket(url) {
+  if (nativeStyleWS) {
+    return new WebSocketImpl(url);
+  }
+  return new WebSocketImpl(url);
+}
+
+function attachWebSocketHandler(ws, event, handler) {
+  if (typeof ws.on === "function") {
+    ws.on(event, handler);
+    return;
+  }
+  const wrapped = (ev) => {
+    if (event === "message") {
+      handler(ev && typeof ev.data !== "undefined" ? ev.data : ev);
+      return;
+    }
+    if (event === "error") {
+      handler(ev?.error || ev);
+      return;
+    }
+    handler(ev);
+  };
+  if (typeof ws.addEventListener === "function") {
+    ws.addEventListener(event, wrapped);
+    return;
+  }
+  throw new Error("WebSocket implementation does not support 'on' or 'addEventListener'.");
+}
+
+function isWebSocketOpen(ws) {
+  if (!ws || typeof ws.readyState === "undefined") return false;
+  const openState = typeof ws.OPEN === "number" ? ws.OPEN : 1;
+  return ws.readyState === openState;
+}
+
+function createShimWebSocket() {
+  class ShimWebSocket extends EventEmitter {
+    constructor(urlStr) {
+      super();
+      this.url = new URL(urlStr);
+      if (this.url.protocol !== "ws:") {
+        throw new Error("Only ws:// URLs are supported without the 'ws' package");
+      }
+      this.readyState = ShimWebSocket.CONNECTING;
+      this._handshakeDone = false;
+      this._buffer = Buffer.alloc(0);
+      const port = Number(this.url.port || 80);
+      this._socket = net.connect(port, this.url.hostname, () => this._sendHandshake());
+      this._socket.on("data", (chunk) => this._onData(chunk));
+      this._socket.on("error", (err) => this.emit("error", err));
+      this._socket.on("close", () => {
+        if (this.readyState !== ShimWebSocket.CLOSED) {
+          this.readyState = ShimWebSocket.CLOSED;
+          this.emit("close");
+        }
+      });
+    }
+
+    _sendHandshake() {
+      this._key = crypto.randomBytes(16).toString("base64");
+      const path = `${this.url.pathname || "/"}${this.url.search || ""}`;
+      const headers = [
+        `GET ${path} HTTP/1.1`,
+        `Host: ${this.url.host}`,
+        "Upgrade: websocket",
+        "Connection: Upgrade",
+        `Sec-WebSocket-Key: ${this._key}`,
+        "Sec-WebSocket-Version: 13",
+        "\r\n",
+      ].join("\r\n");
+      this._socket.write(headers);
+    }
+
+    _onData(chunk) {
+      this._buffer = Buffer.concat([this._buffer, chunk]);
+      if (!this._handshakeDone) {
+        const sep = this._buffer.indexOf("\r\n\r\n");
+        if (sep === -1) return;
+        const headerText = this._buffer.slice(0, sep + 4).toString();
+        if (!headerText.startsWith("HTTP/1.1 101")) {
+          this.emit("error", new Error("WebSocket handshake failed"));
+          this._socket.destroy();
+          return;
+        }
+        this._buffer = this._buffer.slice(sep + 4);
+        this._handshakeDone = true;
+        this.readyState = ShimWebSocket.OPEN;
+        this.emit("open");
+      }
+      this._drainFrames();
+    }
+
+    _drainFrames() {
+      while (this._buffer.length >= 2) {
+        const b0 = this._buffer[0];
+        const opcode = b0 & 0x0f;
+        const b1 = this._buffer[1];
+        const masked = (b1 & 0x80) !== 0;
+        let payloadLen = b1 & 0x7f;
+        let offset = 2;
+        if (payloadLen === 126) {
+          if (this._buffer.length < 4) return;
+          payloadLen = this._buffer.readUInt16BE(2);
+          offset = 4;
+        } else if (payloadLen === 127) {
+          if (this._buffer.length < 10) return;
+          const len64 = this._buffer.readBigUInt64BE(2);
+          if (len64 > BigInt(Number.MAX_SAFE_INTEGER)) {
+            this.emit("error", new Error("WebSocket frame too large"));
+            this._socket.destroy();
+            return;
+          }
+          payloadLen = Number(len64);
+          offset = 10;
+        }
+        if (masked) {
+          this.emit("error", new Error("Received masked frame from server"));
+          this._socket.destroy();
+          return;
+        }
+        if (this._buffer.length < offset + payloadLen) return;
+        const payload = this._buffer.slice(offset, offset + payloadLen);
+        this._buffer = this._buffer.slice(offset + payloadLen);
+        if (opcode === 0x1) {
+          this.emit("message", payload.toString());
+        } else if (opcode === 0x8) {
+          this.readyState = ShimWebSocket.CLOSING;
+          this._socket.end();
+          this.readyState = ShimWebSocket.CLOSED;
+          this.emit("close");
+          return;
+        } else if (opcode === 0x9) {
+          this._sendFrame(0x0a, payload);
+        }
+      }
+    }
+
+    _sendFrame(opcode, payloadBuf = Buffer.alloc(0)) {
+      const payload = Buffer.isBuffer(payloadBuf) ? payloadBuf : Buffer.from(payloadBuf);
+      const len = payload.length;
+      let header;
+      if (len < 126) {
+        header = Buffer.alloc(2);
+        header[1] = 0x80 | len;
+      } else if (len < 65536) {
+        header = Buffer.alloc(4);
+        header[1] = 0x80 | 126;
+        header.writeUInt16BE(len, 2);
+      } else {
+        header = Buffer.alloc(10);
+        header[1] = 0x80 | 127;
+        header.writeBigUInt64BE(BigInt(len), 2);
+      }
+      header[0] = 0x80 | opcode;
+      const mask = crypto.randomBytes(4);
+      const maskedPayload = Buffer.alloc(len);
+      for (let i = 0; i < len; i += 1) {
+        maskedPayload[i] = payload[i] ^ mask[i % 4];
+      }
+      this._socket.write(Buffer.concat([header, mask, maskedPayload]));
+    }
+
+    send(data) {
+      if (this.readyState !== ShimWebSocket.OPEN) {
+        throw new Error("WebSocket not open");
+      }
+      this._sendFrame(0x1, data);
+    }
+
+    close() {
+      if (this.readyState === ShimWebSocket.CLOSED) return;
+      this.readyState = ShimWebSocket.CLOSING;
+      this._sendFrame(0x8, Buffer.alloc(0));
+      this._socket.end();
+    }
+  }
+
+  ShimWebSocket.CONNECTING = 0;
+  ShimWebSocket.OPEN = 1;
+  ShimWebSocket.CLOSING = 2;
+  ShimWebSocket.CLOSED = 3;
+  return ShimWebSocket;
+}
 
 const entry = process.argv[2];
 const userArgs = process.argv.slice(3);
@@ -81,6 +294,7 @@ let inspectorId = 0;
 const pending = new Map();
 let pausedFrame = null;
 let isPaused = false;
+let skipInitialPause = true;
 const bpMap = new Map(); // key `${file}:${line}` -> breakpointId
 
 function inspectorPost(method, params = {}) {
@@ -108,6 +322,11 @@ function onInspectorMessage(raw) {
 
   const params = msg.params || {};
   if (msg.method === "Debugger.paused") {
+    if (skipInitialPause) {
+      skipInitialPause = false;
+      inspectorPost("Debugger.resume").catch(() => {});
+      return;
+    }
     isPaused = true;
     handlePaused(params).catch(() => {});
   } else if (msg.method === "Runtime.exceptionThrown") {
@@ -239,7 +458,7 @@ async function evalOnTop(expr) {
 }
 
 async function handleCommand(cmd) {
-  if (!inspectorWS || inspectorWS.readyState !== WebSocket.OPEN) {
+  if (!isWebSocketOpen(inspectorWS)) {
     throw new Error("inspector not ready");
   }
   const t = cmd.type;
@@ -314,8 +533,21 @@ const child = spawn(
   }
 );
 
+const INSPECTOR_STDERR_PATTERNS = [
+  /Debugger listening on/i,
+  /Debugger attached/i,
+  /For help, see/i,
+  /Waiting for the debugger to disconnect/i,
+];
+
 function emitOutput(text, stream = "stdout") {
   if (!text) return;
+  if (stream === "stderr") {
+    const looksLikeNoise = INSPECTOR_STDERR_PATTERNS.some((pattern) => pattern.test(text));
+    if (looksLikeNoise) {
+      stream = "stdout";
+    }
+  }
   send({ event: "output", body: { text, stream } });
   // Heuristic: if stdout does not end with a newline, surface await_input so UI can enable the input box.
   if (stream === "stdout" && !text.endsWith("\n")) {
@@ -347,9 +579,9 @@ child.on("exit", (code) => {
 
 async function connectInspector(wsUrl) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
+    const ws = createWebSocket(wsUrl);
     inspectorWS = ws;
-    ws.on("open", async () => {
+    attachWebSocketHandler(ws, "open", async () => {
       try {
         await inspectorPost("Runtime.enable");
         await inspectorPost("Debugger.enable");
@@ -366,13 +598,6 @@ async function connectInspector(wsUrl) {
           }
         }
 
-        // Force an initial pause so the client can continue/step reliably.
-        try {
-          await inspectorPost("Debugger.pause");
-        } catch (e) {
-          // ignore
-        }
-
         // If Node is waiting for the debugger (inspect-brk), let it run now.
         try {
           await inspectorPost("Runtime.runIfWaitingForDebugger");
@@ -384,8 +609,8 @@ async function connectInspector(wsUrl) {
         reject(e);
       }
     });
-    ws.on("message", (data) => onInspectorMessage(data.toString()));
-    ws.on("error", (err) => {
+    attachWebSocketHandler(ws, "message", (data) => onInspectorMessage(data.toString()));
+    attachWebSocketHandler(ws, "error", (err) => {
       if (!ws._readyRejected) {
         ws._readyRejected = true;
         reject(err);
@@ -393,7 +618,7 @@ async function connectInspector(wsUrl) {
         send({ event: "exception", body: { message: String(err) } });
       }
     });
-    ws.on("close", () => {
+    attachWebSocketHandler(ws, "close", () => {
       pending.forEach(({ reject }) => reject(new Error("inspector closed")));
       pending.clear();
     });
