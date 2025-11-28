@@ -10,6 +10,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 
 const MONACO_IDS = ['python', 'javascript', 'java', 'cpp', 'go', 'plaintext']
 
+const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
+
 // API base for backend detection
 const API_BASE = (import.meta?.env?.VITE_API_BASE) || 'http://localhost:8000'
 const DETECT_CHUNK = 4000
@@ -21,7 +23,7 @@ function normalizeLang(id) {
 
 // Build request body for /detect
 function buildDetectPayload(code = '', moreChunks = null) {
-  const text = String(code || '')
+  const text = normalizeNewlines(String(code || ''))
   const first = text.slice(0, DETECT_CHUNK)
   const last = text.slice(Math.max(0, text.length - DETECT_CHUNK))
   const enc = new TextEncoder()
@@ -217,7 +219,8 @@ export function LanguageProvider({ children }) {
 
   // Helpers
   async function detectLanguageOnce(getCode, fileId) {
-    const code = typeof getCode === 'function' ? (getCode() || '') : ''
+    const raw = typeof getCode === 'function' ? (getCode() || '') : ''
+    const code = normalizeNewlines(String(raw))
     const lang = heuristicDetectLanguage(code)
     if (fileId) setDetectedLanguage(fileId, lang)
     return lang
@@ -229,7 +232,7 @@ export function LanguageProvider({ children }) {
     return {
       fileId: String(fileId ?? ''),
       language,
-      code: String(code ?? ''),
+      code: normalizeNewlines(String(code ?? '')),
       timestamp: Date.now(),
     }
   }
