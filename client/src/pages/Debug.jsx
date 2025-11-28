@@ -31,7 +31,7 @@ const languageLabel = (id) => {
 }
 
 const defaultFiles = [
-  { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
+  { id: 'f1', name: 'Main', language: 'plaintext', content: 'Hello!' },
 ]
 
 const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
@@ -212,7 +212,7 @@ export default function Debug() {
   }, [leftOpen, leftTrapRef])
 
   const [outputCollapsed, setOutputCollapsed] = useState(false)
-  const [splitRatio, setSplitRatio] = useState(0.65)
+  const [splitRatio, setSplitRatio] = useState(0.4)
   const isResizingRef = useRef(false)
   useEffect(() => {
     const onMove = (e) => {
@@ -799,6 +799,9 @@ function DebugPanelContainer(props) {
     statusMessage,
     exceptionInfo,
     awaitingPrompt,
+    autoBreakpointsBusy,
+    autoBreakpointStatus,
+    generateAutoBreakpoints,
   } = useDebugContext()
 
   return (
@@ -828,6 +831,9 @@ function DebugPanelContainer(props) {
       statusMessage={statusMessage}
       exceptionInfo={exceptionInfo}
       awaitingPrompt={awaitingPrompt}
+      autoBreakpointsBusy={autoBreakpointsBusy}
+      autoBreakpointStatus={autoBreakpointStatus}
+      autoGenerateBreakpoints={generateAutoBreakpoints}
       onBlockedDebuggerAction={props.onBlockedDebuggerAction}
     />
   )

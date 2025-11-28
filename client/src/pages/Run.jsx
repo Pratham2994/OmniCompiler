@@ -65,7 +65,7 @@ const placeholderByLangId = {
 }
 
 const defaultFiles = [
-  { id: 'f1', name: 'main', language: 'plaintext', content: 'Hello!' },
+  { id: 'f1', name: 'Main', language: 'plaintext', content: 'Hello!' },
 ]
 
 const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
@@ -1063,6 +1063,13 @@ export default function Run() {
               title="Translate workspace"
             >
               Translate
+            </Link>
+            <Link
+              to="/insights"
+              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
+              title="AI insights workspace"
+            >
+              AI Insights
             </Link>
           </nav>
         </div>

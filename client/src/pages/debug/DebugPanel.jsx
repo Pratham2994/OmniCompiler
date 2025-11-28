@@ -46,12 +46,25 @@ export default function DebugPanel({
   exceptionInfo,
   awaitingPrompt,
   onBlockedDebuggerAction,
+  autoGenerateBreakpoints,
+  autoBreakpointsBusy,
+  autoBreakpointStatus,
 }) {
   const traceScrollRef = useRef(null)
   const stdinInputRef = useRef(null)
   const stdinPlaceholder = waitingForInput
     ? (awaitingPrompt?.trim() || 'Enter input for the program…')
     : (running ? 'Waiting for program to request input…' : 'Start debugging to send stdin')
+
+  const autoStatus = autoBreakpointStatus || {}
+  const autoStatusTone = autoStatus.kind === 'error'
+    ? 'text-[var(--oc-danger)]'
+    : autoStatus.kind === 'success'
+      ? 'text-[var(--oc-primary-200)]'
+      : autoStatus.kind === 'running'
+        ? 'text-[var(--oc-primary-200)]'
+        : 'text-[var(--oc-muted)]'
+  const autoStatusText = autoStatus.message || 'Use Auto Breakpoints to get AI suggestions.'
 
   useEffect(() => {
     if (!waitingForInput) return
@@ -225,9 +238,10 @@ export default function DebugPanel({
 
           <button
             onClick={clearBreakpoints}
-            className="oc-icon-btn"
+            className={`oc-icon-btn ${autoBreakpointsBusy ? 'opacity-50 cursor-not-allowed' : ''}`}
             aria-label="Clear all breakpoints"
             title="Clear all breakpoints"
+            disabled={autoBreakpointsBusy}
           >
             <Icon name="trash" />
           </button>
@@ -274,14 +288,50 @@ export default function DebugPanel({
             </div>
 
             <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Breakpoints</div>
-                  <div className="text-[11px] text-[var(--oc-muted)]">
-                    Click the gutter or press F9.
+              <div className="relative flex flex-col min-h-0 bg-[var(--oc-surface-2)] rounded p-2" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
+                {autoBreakpointsBusy && (
+                  <div
+                    className="absolute inset-0 z-10 rounded bg-[var(--oc-surface)]/80 backdrop-blur-sm flex items-center justify-center text-sm font-semibold text-[var(--oc-primary-100)] pointer-events-auto"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-4 h-4 border-2 border-[var(--oc-primary-200)] border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                      Generating breakpoints…
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-2">
+                  <div className="flex-1 min-w-[180px]">
+                    <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Breakpoints</div>
+                    <div className="text-[11px] text-[var(--oc-muted)]">
+                      Click the gutter or press F9.
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1 w-full sm:w-auto items-stretch text-left sm:text-right">
+                    <button
+                      className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold text-[var(--oc-on-primary)] bg-gradient-to-r from-[var(--oc-primary-500)] via-[var(--oc-primary-600)] to-[var(--oc-primary-700)] shadow focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)] transition ${autoBreakpointsBusy ? 'opacity-60 cursor-not-allowed' : ''} w-full sm:w-auto`}
+                      onClick={autoGenerateBreakpoints}
+                      disabled={autoBreakpointsBusy}
+                    >
+                      {autoBreakpointsBusy ? (
+                        <>
+                          <span className="inline-block w-3 h-3 border-2 border-[var(--oc-on-primary)] border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                          Generating…
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="wand" className="size-4" />
+                          Auto Breakpoints
+                        </>
+                      )}
+                    </button>
+                    <p className={`text-[10px] leading-tight ${autoStatusTone}`} aria-live="polite">
+                      {autoStatusText}
+                    </p>
                   </div>
                 </div>
-                <div className="flex-1 min-h-0 overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto" aria-busy={autoBreakpointsBusy ? 'true' : 'false'}>
                   {breakpoints.length === 0 ? (
                     <div className="text-[var(--oc-muted)]">No breakpoints yet. Click in the gutter (left of the line numbers)</div>
                   ) : (
@@ -294,10 +344,11 @@ export default function DebugPanel({
                             {bp.condition ? <span className="ml-2 text-[var(--oc-muted)]">if {bp.condition}</span> : null}
                           </div>
                           <button
-                            className="oc-icon-btn"
+                            className={`oc-icon-btn ${autoBreakpointsBusy ? 'opacity-50 cursor-not-allowed' : ''}`}
                             onClick={() => removeBreakpoint(bp.id)}
                             aria-label={`Remove breakpoint at ${bp.fileName}:${bp.line}`}
                             title="Remove"
+                            disabled={autoBreakpointsBusy}
                           >
                             <Icon name="trash" />
                           </button>

@@ -35,6 +35,12 @@ export default function DebugHeader({ settingsOpen, onOpenSettings }) {
           >
             Translate
           </Link>
+          <Link
+            to="/insights"
+            className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
+          >
+            AI Insights
+          </Link>
         </nav>
       </div>
 

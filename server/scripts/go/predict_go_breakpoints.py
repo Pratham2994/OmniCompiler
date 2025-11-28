@@ -54,7 +54,7 @@ def extract_features_from_line(line: str, reasons_str: str):
         "num_tokens": num_tokens(line),
     }
 
-def select_k_from_scores(scores, base_threshold=0.5, min_k=2, max_k=8):
+def select_k_from_scores(scores, base_threshold=0.5, min_k=2, max_k=256):
     n = len(scores)
     if n == 0:
         return 0
@@ -95,7 +95,7 @@ def predict_breakpoints(go_path: Path):
 
     df_sorted = df.sort_values("score", ascending=False)
     scores_sorted = df_sorted["score"].tolist()
-    k = select_k_from_scores(scores_sorted, base_threshold=0.5, min_k=2, max_k=8)
+    k = select_k_from_scores(scores_sorted, base_threshold=0.5, min_k=2, max_k=256)
 
     if k == 0:
         print(f"\nNo confident breakpoints found for {go_path.name}.\n")

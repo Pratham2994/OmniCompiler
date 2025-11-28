@@ -28,6 +28,8 @@ const shortName = (value = '') => {
   return parts[parts.length - 1] || normalized
 }
 
+const normalizeLf = (value = '') => String(value ?? '').replace(/\r\n?/g, '\n')
+
 const buildMetaMaps = (fileMetas = []) => {
   const byId = new Map()
   const byPath = new Map()
@@ -127,6 +129,8 @@ export function DebugProvider({
   const [pausedLocation, setPausedLocation] = useState(null)
   const [exceptionInfo, setExceptionInfo] = useState(null)
   const [awaitingPrompt, setAwaitingPrompt] = useState('')
+  const [autoBreakpointsBusy, setAutoBreakpointsBusy] = useState(false)
+  const [autoBreakpointStatus, setAutoBreakpointStatus] = useState({ kind: 'idle', message: '' })
 
   const wsRef = useRef(null)
   const sessionSettledRef = useRef({ phase: 'idle', status: 'Idle' })
@@ -249,6 +253,129 @@ export function DebugProvider({
     setBreakpoints([])
     lastSyncedBreakpointsRef.current = new Map()
   }, [])
+
+  const generateAutoBreakpoints = useCallback(async () => {
+    if (autoBreakpointsBusy) return
+
+    const buildRequest = buildDebugRunRequestRef.current
+    if (typeof buildRequest !== 'function') {
+      setAutoBreakpointStatus({ kind: 'error', message: 'Debugger is not ready to build files.' })
+      return
+    }
+
+    try {
+      persistModelsRef.current?.()
+    } catch {
+      /* ignore */
+    }
+
+    const payload = buildRequest()
+    if (!payload) {
+      setAutoBreakpointStatus({ kind: 'error', message: 'Unable to collect files for analysis.' })
+      return
+    }
+
+    const lang = String(payload.lang || '').toLowerCase()
+    if (!lang || lang === 'plaintext') {
+      setAutoBreakpointStatus({ kind: 'error', message: 'Select a supported language before generating breakpoints.' })
+      return
+    }
+
+    const files = Array.isArray(payload.files) ? payload.files.slice(0, 5) : []
+    if (!files.length) {
+      setAutoBreakpointStatus({ kind: 'error', message: 'Add at least one file before requesting auto-breakpoints.' })
+      return
+    }
+
+    setAutoBreakpointsBusy(true)
+    setAutoBreakpointStatus({ kind: 'running', message: 'Predicting breakpoint candidates…' })
+    setDebugTabRef.current?.('bpvars')
+
+    const fileIdLookup = new Map()
+    const registerMeta = (rawName) => {
+      if (!rawName) return
+      const trimmed = String(rawName).trim()
+      if (!trimmed) return
+      let meta = resolveMetaFromPath(trimmed)
+      if (!meta) meta = resolveMetaFromPath(shortName(trimmed))
+      if (!meta) {
+        const maps = metaMapsRef.current
+        if (maps) {
+          for (const entry of maps.byId.values()) {
+            if (entry?.fileName && entry.fileName === shortName(trimmed)) {
+              meta = entry
+              break
+            }
+          }
+        }
+      }
+      if (meta?.fileId) {
+        fileIdLookup.set(trimmed, meta.fileId)
+        fileIdLookup.set(meta.filePath, meta.fileId)
+        fileIdLookup.set(meta.fileName, meta.fileId)
+      }
+    }
+
+    const requestFiles = files.map((file) => {
+      const name = String(file?.name || '').trim()
+      registerMeta(name)
+      return {
+        name,
+        content: normalizeLf(String(file?.content || '')),
+      }
+    })
+
+    try {
+      const res = await fetch(`${baseUrl}/breakpoints/auto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: lang, files: requestFiles }),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      const suggestions = Array.isArray(data?.breakpoints) ? data.breakpoints : []
+      let inserted = 0
+      const findFileId = (raw) => {
+        if (!raw) return null
+        const trimmed = String(raw).trim()
+        if (!trimmed) return null
+        const normalized = trimmed.replace(/\\/g, '/')
+        const reversed = normalized.replace(/\//g, '\\')
+        return (
+          fileIdLookup.get(trimmed) ||
+          fileIdLookup.get(normalized) ||
+          fileIdLookup.get(reversed) ||
+          fileIdLookup.get(shortName(trimmed))
+        )
+      }
+      for (const suggestion of suggestions) {
+        const fileId = findFileId(suggestion?.file)
+        if (!fileId) continue
+        const lineNo = Math.max(1, parseInt(suggestion?.line, 10) || 1)
+        const exists = (breakpointsRef.current || []).some((bp) => bp.fileId === fileId && bp.line === lineNo)
+        if (exists) continue
+        addBreakpoint(fileId, lineNo)
+        inserted += 1
+      }
+      if (inserted > 0) {
+        setAutoBreakpointStatus({ kind: 'success', message: `Added ${inserted} breakpoint${inserted === 1 ? '' : 's'} from the model.` })
+      } else if (suggestions.length === 0) {
+        setAutoBreakpointStatus({ kind: 'empty', message: 'Model did not return confident breakpoint candidates.' })
+      } else {
+        setAutoBreakpointStatus({ kind: 'empty', message: 'All suggested breakpoints already existed.' })
+      }
+      appendStatusLog(`Auto-breakpoint generation completed (${inserted} new).`)
+    } catch (err) {
+      const message = err?.message || 'Auto-breakpoint request failed.'
+      setAutoBreakpointStatus({ kind: 'error', message })
+      appendStatusLog(`Auto-breakpoint error: ${message}`)
+    } finally {
+      setAutoBreakpointsBusy(false)
+    }
+  }, [addBreakpoint, appendStatusLog, autoBreakpointsBusy, baseUrl, breakpointsRef, buildDebugRunRequestRef, metaMapsRef, persistModelsRef, resolveMetaFromPath, setDebugTabRef])
 
   const onClearOutput = useCallback(() => setOutputLog([]), [])
 
@@ -581,11 +708,19 @@ export function DebugProvider({
     statusMessage,
     exceptionInfo,
     awaitingPrompt,
+    autoBreakpointsBusy,
+    autoBreakpointStatus,
+    generateAutoBreakpoints,
   }), [
     addBreakpoint,
+    autoBreakpointStatus,
+    autoBreakpointsBusy,
+    awaitingPrompt,
     breakpoints,
     clearBreakpoints,
     continueExecution,
+    exceptionInfo,
+    generateAutoBreakpoints,
     localsView,
     onClearOutput,
     outputLog,
@@ -603,9 +738,7 @@ export function DebugProvider({
     stopDebugSession,
     toggleBreakpoint,
     waitingForInput,
-    exceptionInfo,
     stackFrames,
-    awaitingPrompt,
   ])
 
   return <DebugContext.Provider value={value}>{children}</DebugContext.Provider>

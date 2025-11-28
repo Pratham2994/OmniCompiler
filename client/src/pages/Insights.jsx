@@ -5,10 +5,13 @@ import { useLanguage } from '../context/LanguageContext.jsx'
 import { Icon, ManualLanguagePicker } from '../components/run/ui.jsx'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
-const stripExtension = (name) => {
-  const idx = name.lastIndexOf('.')
-  if (idx > 0) return name.slice(0, idx)
-  return name
+
+const stripExtension = (name = '') => {
+  const clean = String(name || '').trim()
+  if (!clean) return 'file'
+  const idx = clean.lastIndexOf('.')
+  if (idx > 0) return clean.slice(0, idx)
+  return clean
 }
 
 const LANGUAGE_LABELS = {
@@ -34,19 +37,28 @@ const LANGUAGE_LABELS = {
 
 const languageLabel = (id) => LANGUAGE_LABELS[id?.toLowerCase()] || 'Plain Text'
 
-const TARGET_LANGUAGES = [
-  'python',
-  'javascript',
-  'typescript',
-  'java',
-  'cpp',
-  'go',
-  'csharp',
-  'rust',
-  'kotlin',
-  'swift',
-  'assembly',
-].map((id) => ({ id, label: languageLabel(id) }))
+const EXTENSION_MAP = {
+  python: 'py',
+  javascript: 'js',
+  typescript: 'ts',
+  java: 'java',
+  cpp: 'cpp',
+  c: 'c',
+  csharp: 'cs',
+  go: 'go',
+  rust: 'rs',
+  kotlin: 'kt',
+  swift: 'swift',
+  php: 'php',
+  ruby: 'rb',
+  sql: 'sql',
+  html_css: 'html',
+  bash: 'sh',
+  assembly: 'asm',
+  plaintext: 'txt',
+}
+
+const extForLang = (id) => EXTENSION_MAP[id?.toLowerCase()] || 'txt'
 
 const defaultFiles = [
   { id: 'f1', name: 'Main', language: 'plaintext', content: 'Hello!' },
@@ -56,6 +68,8 @@ const normalizeNewlines = (text = '') => text.replace(/\r\n?/g, '\n')
 
 const LS_KEY = 'oc_files_snapshot_v1'
 const LS_TTL_MS = 10 * 60 * 1000
+const INSIGHT_SNAPSHOT_KEY = 'oc_insights_snapshot_v1'
+const INSIGHT_TTL_MS = 10 * 60 * 1000
 
 const readFreshSnapshot = () => {
   try {
@@ -71,6 +85,23 @@ const readFreshSnapshot = () => {
     })
     const activeId = (data.activeId && files.find((x) => x.id === data.activeId)) ? data.activeId : (files[0]?.id || null)
     return { files, activeId }
+  } catch {
+    return null
+  }
+}
+
+const readInsightSnapshot = () => {
+  try {
+    const raw = localStorage.getItem(INSIGHT_SNAPSHOT_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data || typeof data.ts !== 'number' || !data.result) return null
+    if ((Date.now() - data.ts) > INSIGHT_TTL_MS) return null
+    return {
+      result: data.result,
+      focusPath: data.focusPath || null,
+      lastInsightAt: typeof data.lastInsightAt === 'number' ? data.lastInsightAt : null,
+    }
   } catch {
     return null
   }
@@ -117,12 +148,23 @@ function useFocusTrap(active) {
   return containerRef
 }
 
-export default function Translate() {
+const formatTimestamp = (date) => {
+  if (!date) return ''
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const asList = (value) => {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+}
+
+export default function Insights() {
   const THEME_MAP = {
     'vscode-dark-plus': { rootClass: ['theme-dark', 'dark'], monaco: 'vs-dark' },
     'vscode-light-plus': { rootClass: ['theme-light'], monaco: 'vs' },
     'vscode-high-contrast': { rootClass: ['theme-hc', 'dark'], monaco: 'hc-black' },
   }
+
   const [theme, setTheme] = useState(() => localStorage.getItem('oc_theme') || 'vscode-dark-plus')
   useEffect(() => {
     const root = document.documentElement
@@ -142,6 +184,8 @@ export default function Translate() {
     stopPollingForFile,
     apiBase,
   } = useLanguage()
+
+  const initialInsightSnapshot = useMemo(() => readInsightSnapshot(), [])
 
   const [files, setFiles] = useState(() => {
     const snap = readFreshSnapshot()
@@ -520,119 +564,9 @@ export default function Translate() {
     return () => el.removeEventListener('trap-escape', h)
   }, [quickOpen, quickTrapRef])
 
-  const [selectedTargets, setSelectedTargets] = useState(['python'])
-  const [translations, setTranslations] = useState([])
-  const [translating, setTranslating] = useState(false)
-  const [translationStatus, setTranslationStatus] = useState('')
-  const [lastTranslatedAt, setLastTranslatedAt] = useState(null)
-
-  const toggleTarget = (id) => {
-    setSelectedTargets((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id)
-      return [...prev, id]
-    })
-  }
-
-  const clearTranslations = () => {
-    setTranslations([])
-    setLastTranslatedAt(null)
-  }
-
-  const copyTranslation = async (langId, code) => {
-    try {
-      await navigator.clipboard.writeText(code || '')
-      triggerToast(`Copied ${languageLabel(langId)}`)
-    } catch {
-      triggerToast('Unable to copy text')
-    }
-  }
-
-  const translateCode = useCallback(async () => {
-    if (!activeFile) {
-      triggerToast('Add or select a file to translate')
-      return
-    }
-    const targets = Array.from(new Set(selectedTargets))
-    if (!targets.length) {
-      triggerToast('Select at least one target language')
-      return
-    }
-    const effLang = getEffectiveLanguage(activeFileId) || 'plaintext'
-    if (effLang === 'plaintext') {
-      triggerToast('Pick a programming language for the source file')
-      return
-    }
-    const editor = editorRef.current
-    const model = editor?.getModel()
-    let code = normalizeNewlines(activeFile.content || '')
-    if (model) {
-      code = normalizeNewlines(model.getValue() || '')
-      const latest = code
-      setFiles((prev) => prev.map((f) => (f.id === activeFileId ? { ...f, content: latest } : f)))
-    }
-    if (!code.trim()) {
-      triggerToast('Source code is empty')
-      return
-    }
-    setTranslating(true)
-    setTranslationStatus(`Translating to ${targets.map((t) => languageLabel(t)).join(', ')}`)
-    try {
-      const res = await fetch(`${apiBase}/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_code: code,
-          source_language: effLang,
-          target_languages: targets,
-          options: {
-            preserve_comments: true,
-            preserve_structure: true,
-          },
-        }),
-      })
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
-      const list = Array.isArray(data?.translations) ? data.translations : []
-      setTranslations(list)
-      setLastTranslatedAt(new Date())
-      if (!list.length) triggerToast('Translation completed with no outputs')
-    } catch (err) {
-      console.error(err)
-      triggerToast(`Translation failed: ${err?.message || 'Unknown error'}`)
-    } finally {
-      setTranslating(false)
-      setTranslationStatus('')
-    }
-  }, [activeFile, activeFileId, apiBase, getEffectiveLanguage, selectedTargets, setFiles, triggerToast])
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault()
-        translateCode()
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p')) {
-        e.preventDefault()
-        setQuickOpen(true)
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f')) {
-        const ed = editorRef.current
-        if (ed) {
-          e.preventDefault()
-          ed.getAction('actions.find')?.run()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [translateCode])
-
   const onFormat = async () => {
     const ed = editorRef.current
-    if (! ed) return
+    if (!ed) return
     try {
       const action = ed.getAction('editor.action.formatDocument')
       if (action) {
@@ -682,12 +616,146 @@ export default function Translate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetect, monacoReady, activeFileId])
 
-  const sourceBadgeText = autoDetect
+  const getLiveContent = useCallback((file) => {
+    const model = modelsRef.current.get(file.id)
+    if (model && typeof model.getValue === 'function') {
+      return normalizeNewlines(String(model.getValue() ?? ''))
+    }
+    return normalizeNewlines(String(file.content ?? ''))
+  }, [])
+
+  const nameWithExt = useCallback((file, fallbackLang) => {
+    const resolvedLang = getEffectiveLanguage(file.id) || fallbackLang || 'plaintext'
+    const ext = extForLang(resolvedLang)
+    const base = stripExtension(file.name || 'file')
+    return ext ? `${base}.${ext}` : base
+  }, [getEffectiveLanguage])
+
+  const buildInsightPayload = useCallback(() => {
+    const entryLang = getEffectiveLanguage(activeFileId) || 'plaintext'
+    const focusFile = files.find((f) => f.id === activeFileId) || files[0]
+    const focusPath = focusFile ? nameWithExt(focusFile, entryLang) : null
+    const payloadFiles = files
+      .map((file) => {
+        const content = getLiveContent(file)
+        if (!content.trim()) return null
+        return { path: nameWithExt(file, entryLang), content }
+      })
+      .filter(Boolean)
+
+    return { entryLang, focus_path: focusPath, files: payloadFiles }
+  }, [files, activeFileId, getEffectiveLanguage, getLiveContent, nameWithExt])
+
+  const [insightResult, setInsightResult] = useState(() => initialInsightSnapshot?.result ?? null)
+  const [insightBusy, setInsightBusy] = useState(false)
+  const [insightError, setInsightError] = useState(null)
+  const [lastInsightAt, setLastInsightAt] = useState(() => (
+    initialInsightSnapshot?.lastInsightAt ? new Date(initialInsightSnapshot.lastInsightAt) : null
+  ))
+  const [lastFocusPath, setLastFocusPath] = useState(initialInsightSnapshot?.focusPath || null)
+
+  const writeInsightSnapshot = useCallback((payload) => {
+    try {
+      if (!payload) {
+        localStorage.removeItem(INSIGHT_SNAPSHOT_KEY)
+        return
+      }
+      localStorage.setItem(INSIGHT_SNAPSHOT_KEY, JSON.stringify({
+        ts: Date.now(),
+        result: payload.result,
+        focusPath: payload.focusPath || null,
+        lastInsightAt: payload.lastInsightAt ?? null,
+      }))
+    } catch {}
+  }, [])
+
+  const generateInsights = useCallback(async () => {
+    if (!activeFile) {
+      triggerToast('Add or select a file to analyze')
+      return
+    }
+    const activeContent = getLiveContent(activeFile)
+    if (!activeContent.trim()) {
+      triggerToast('Active file is empty. Add some code first.')
+      return
+    }
+    const payloadMeta = buildInsightPayload()
+    if (!payloadMeta.focus_path) {
+      triggerToast('Unable to determine focus file path')
+      return
+    }
+    if (!payloadMeta.files.length) {
+      triggerToast('Add code to at least one file before requesting insights')
+      return
+    }
+
+    setInsightBusy(true)
+    setInsightError(null)
+    try {
+      const res = await fetch(`${apiBase}/insights`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: payloadMeta.files,
+          focus_path: payloadMeta.focus_path,
+          language: payloadMeta.entryLang === 'plaintext' ? undefined : payloadMeta.entryLang,
+        }),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      const nowTs = Date.now()
+      setInsightResult(data)
+      setLastInsightAt(new Date(nowTs))
+      setLastFocusPath(payloadMeta.focus_path)
+      writeInsightSnapshot({ result: data, focusPath: payloadMeta.focus_path, lastInsightAt: nowTs })
+    } catch (err) {
+      setInsightError(err?.message || 'Unable to generate insights')
+    } finally {
+      setInsightBusy(false)
+    }
+  }, [activeFile, apiBase, buildInsightPayload, getLiveContent, triggerToast, writeInsightSnapshot])
+
+  const clearInsights = useCallback(() => {
+    setInsightResult(null)
+    setInsightError(null)
+    setLastInsightAt(null)
+    setLastFocusPath(null)
+    writeInsightSnapshot(null)
+  }, [writeInsightSnapshot])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        generateInsights()
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p')) {
+        e.preventDefault()
+        setQuickOpen(true)
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'f')) {
+        const ed = editorRef.current
+        if (ed) {
+          e.preventDefault()
+          ed.getAction('actions.find')?.run()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [generateInsights])
+
+  const languageBadgeText = autoDetect
     ? `Detected: ${languageLabel(effectiveLanguage)} (auto)`
     : `Pinned: ${languageLabel(manualLanguage || effectiveLanguage)} (manual)`
-  const statusSummary = translating
-    ? translationStatus
-    : (lastTranslatedAt ? `Last translated ${lastTranslatedAt.toLocaleTimeString()}` : 'Ready to translate')
+
+  const focusPreview = activeFile
+    ? nameWithExt(activeFile, effectiveLanguage)
+    : 'main.py'
+  const insightLanguage = insightResult?.language || languageLabel(effectiveLanguage)
 
   return (
     <div className="h-screen w-screen">
@@ -726,13 +794,13 @@ export default function Translate() {
             </Link>
             <Link
               to="/translate"
-              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)]"
+              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
             >
               Translate
             </Link>
             <Link
               to="/insights"
-              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-surface-2)]"
+              className="px-3 py-1.5 text-sm rounded border border-[var(--oc-border)] bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)]"
             >
               AI Insights
             </Link>
@@ -789,7 +857,7 @@ export default function Translate() {
                 </button>
               </div>
               <div className="p-3">
-                {leftTab === 'files' ? (
+                {leftTab === 'files' && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-[var(--oc-muted)]">Max 5 items</div>
@@ -822,8 +890,8 @@ export default function Translate() {
                       aria-label="Files list"
                     >
                       {files.length === 0 && (
-                        <li className="text-sm text-[var(--oc-muted)]">No files yet. Click + to add.</li>)
-                      }
+                        <li className="text-sm text-[var(--oc-muted)]">No files yet. Click + to add.</li>
+                      )}
                       {files.map((f) => (
                         <li
                           key={f.id}
@@ -891,7 +959,7 @@ export default function Translate() {
                       ))}
                     </ul>
                   </div>
-                ) : null}
+                )}
               </div>
             </div>
             <div className="w-5 h-full" />
@@ -950,7 +1018,7 @@ export default function Translate() {
                 <span id="cursorPos">Ln {cursorPos.line}, Col {cursorPos.column}</span>
               </div>
               <div className="flex items-center gap-3">
-                <span id="modeIndicator">Mode: Translate</span>
+                <span id="modeIndicator">Mode: AI Insights</span>
                 <span id="langIndicator">{languageLabel(effectiveLanguage)} {autoDetect ? '(auto)' : '(manual)'}</span>
                 <span id="encoding">UTF-8</span>
                 <span id="indent">Spaces: 4</span>
@@ -982,20 +1050,39 @@ export default function Translate() {
                 exit={{ opacity: 0, x: 12, width: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 0.8, 0.36, 1] }}
               >
-                <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="inline-flex items-center px-2 py-1 rounded bg-[var(--oc-surface-2)] border border-[var(--oc-border)]">
-                      {sourceBadgeText}
-                    </span>
+                <div className="h-11 shrink-0 px-3 border-b border-[var(--oc-border)] flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-1 text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-[var(--oc-surface-2)] border border-[var(--oc-border)]">
+                        {languageBadgeText}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-[var(--oc-surface-2)] border border-dashed border-[var(--oc-border)] text-[var(--oc-muted)]">
+                        Focus: {lastFocusPath || focusPreview}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {insightResult && (
+                      <button
+                        onClick={clearInsights}
+                        className="oc-icon-btn"
+                        aria-label="Clear insights"
+                        title="Clear insights"
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    )}
                     <button
-                      onClick={clearTranslations}
-                      className="oc-icon-btn"
-                      aria-label="Clear translations"
-                      title="Clear translations"
+                      onClick={generateInsights}
+                      disabled={insightBusy}
+                      className={`oc-btn-cta h-9 px-5 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)] flex items-center justify-center gap-2 ${insightBusy ? 'opacity-70 cursor-wait' : ''}`}
+                      aria-label="Generate AI Insights"
+                      title="Generate AI Insights (Ctrl/Cmd + Enter)"
                     >
-                      <Icon name="trash" />
+                      {insightBusy && (
+                        <span className="size-4 rounded-full border-2 border-white/70 border-t-transparent animate-spin" aria-hidden="true" />
+                      )}
+                      <span className="font-semibold tracking-wide text-sm">Generate AI Insights</span>
                     </button>
                     <button
                       data-testid="tid-collapse-output"
@@ -1009,71 +1096,79 @@ export default function Translate() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-0 p-3 flex flex-col gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Target languages</div>
-                      <div className="text-xs text-[var(--oc-muted)]">{selectedTargets.length} selected</div>
+                <div className="flex-1 min-h-0 p-3 flex flex-col gap-3">
+                  {insightError && (
+                    <div className="px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-200 flex items-center gap-2">
+                      <Icon name="x" className="size-4" />
+                      <span>{insightError}</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {TARGET_LANGUAGES.map((lang) => {
-                        const active = selectedTargets.includes(lang.id)
-                        return (
-                          <button
-                            key={lang.id}
-                            type="button"
-                            aria-pressed={active ? 'true' : 'false'}
-                            onClick={() => toggleTarget(lang.id)}
-                            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${active ? 'bg-[var(--oc-primary-600)] text-[var(--oc-on-primary)] border-[var(--oc-primary-500)] shadow-inner' : 'bg-[var(--oc-surface-2)] text-[var(--oc-muted)] border-[var(--oc-border)] hover:text-[var(--oc-fg)]'}`}
-                          >
-                            {lang.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-[var(--oc-muted)]">{statusSummary}</div>
-                    <button
-                      onClick={translateCode}
-                      disabled={translating}
-                      className={`oc-btn-cta h-11 px-6 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--oc-ring)] flex items-center justify-center gap-2 ${translating ? 'opacity-70 cursor-wait' : ''}`}
-                      aria-label="Translate code"
-                      title="Translate (Ctrl/Cmd + Enter)"
-                    >
-                      {translating && (
-                        <span className="size-4 rounded-full border-2 border-white/70 border-t-transparent animate-spin" aria-hidden="true" />
-                      )}
-                      <span className="font-semibold tracking-wide text-sm">Translate</span>
-                    </button>
-                  </div>
+                  {insightResult ? (
+                    <div className="flex-1 min-h-0 overflow-auto space-y-3">
+                      <InsightCard
+                        title="What it does"
+                        icon="wand"
+                        accent="hero"
+                        badge={
+                          <span className="text-[11px] uppercase tracking-wide text-[var(--oc-muted)]">
+                            Language: {insightLanguage}
+                          </span>
+                        }
+                      >
+                        {insightResult.what_it_does?.trim() || 'Gemini did not return a summary.'}
+                      </InsightCard>
 
-                  <div className="flex-1 min-h-0 overflow-auto space-y-3">
-                    {translations.length === 0 ? (
-                      <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center text-sm text-[var(--oc-muted)] border border-dashed border-[var(--oc-border)] rounded">
-                        <p>Select one or more target languages and click Translate to see results.</p>
-                      </div>
-                    ) : (
-                      translations.map((t) => (
-                        <div key={t.target_language} className="border border-[var(--oc-border)] rounded bg-[var(--oc-surface-2)] flex flex-col" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)' }}>
-                          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--oc-border)]">
-                            <div className="text-sm font-semibold">{languageLabel(t.target_language)}</div>
-                            <button
-                              className="oc-icon-btn"
-                              aria-label={`Copy ${languageLabel(t.target_language)} translation`}
-                              onClick={() => copyTranslation(t.target_language, t.code)}
-                            >
-                              <Icon name="copy" />
-                            </button>
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        <InsightCard title="Key behaviors" icon="node-function">
+                          <InsightList items={asList(insightResult.key_behaviors)} empty="No key behaviors identified" />
+                        </InsightCard>
+                        <InsightCard title="Complexity" icon="settings">
+                          <div className="space-y-1 text-sm">
+                            <div className="text-[var(--oc-muted)]">Estimated Complexity</div>
+                            <div className="text-base font-semibold">{insightResult?.complexity?.estimate || 'Unknown'}</div>
+                            <div className="text-[var(--oc-muted)]">
+                              {insightResult?.complexity?.rationale || 'LLM did not provide rationale.'}
+                            </div>
                           </div>
-                          <pre className="m-0 p-3 font-mono text-xs whitespace-pre-wrap oc-console overflow-auto">
-                            {t.code || ''}
-                          </pre>
+                        </InsightCard>
+                      </div>
+
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        <InsightCard title="Obvious bugs" icon="node-return" accent="alert">
+                          <InsightList items={asList(insightResult.obvious_bugs)} empty="No obvious bugs detected" />
+                        </InsightCard>
+                        <InsightCard title="Possible bugs" icon="node-switch" accent="warning">
+                          <InsightList items={asList(insightResult.possible_bugs)} empty="No potential issues mentioned" />
+                        </InsightCard>
+                      </div>
+
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        <InsightCard title="Fix ideas" icon="node-method">
+                          <InsightList items={asList(insightResult.fixes)} empty="No fixes suggested" />
+                        </InsightCard>
+                        <InsightCard title="Risk profile" icon="node-try">
+                          <InsightList items={asList(insightResult.risks)} empty="No risks highlighted" />
+                        </InsightCard>
+                      </div>
+
+                      <InsightCard title="Test ideas" icon="search">
+                        <InsightList items={asList(insightResult.test_ideas)} empty="No tests proposed" />
+                      </InsightCard>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-h-0">
+                      <div className="h-full min-h-[220px] w-full rounded-xl border border-dashed border-[var(--oc-border)] bg-gradient-to-br from-[var(--oc-primary-900)]/30 via-transparent to-[var(--oc-surface-2)] flex flex-col items-center justify-center text-center px-6 py-8 gap-3">
+                        <div className="text-lg font-semibold">AI Insights</div>
+                        <p className="text-sm text-[var(--oc-muted)] max-w-md">
+                          Keep coding on the left. When you want a summary, risk sweep, or quick QA plan, hit "Generate AI Insights" and Gemini will analyze every open file with language detection, focus on <span className="font-semibold text-[var(--oc-fg)]">{focusPreview}</span>, and stream back a color-coded dossier.
+                        </p>
+                        <div className="text-xs text-[var(--oc-muted)]">
+                          Tip: Use Ctrl/Cmd + Enter to trigger insights without leaving the editor.
                         </div>
-                      ))
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.section>
             )}
@@ -1261,5 +1356,45 @@ export default function Translate() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+function InsightCard({ title, icon, accent = 'default', badge, children }) {
+  const accentStyles = {
+    default: 'bg-[var(--oc-surface-2)] border-[var(--oc-border)]',
+    hero: 'bg-gradient-to-br from-[var(--oc-primary-800)]/40 via-[var(--oc-primary-600)]/20 to-transparent border-transparent shadow-lg shadow-[var(--oc-primary-900)]/30',
+    alert: 'bg-red-500/5 border-red-500/30',
+    warning: 'bg-amber-500/5 border-amber-500/30',
+  }
+  const cls = accentStyles[accent] || accentStyles.default
+  return (
+    <div className={`rounded-xl border px-3 py-3 space-y-2 ${cls}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--oc-fg)]">
+          <Icon name={icon} className="size-4" />
+          <span>{title}</span>
+        </div>
+        {badge}
+      </div>
+      <div className="text-sm text-[var(--oc-muted)] leading-relaxed whitespace-pre-wrap">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function InsightList({ items, empty }) {
+  if (!items.length) {
+    return <p className="text-sm text-[var(--oc-muted)]">{empty}</p>
+  }
+  return (
+    <ul className="space-y-1 text-sm">
+      {items.map((item, idx) => (
+        <li key={`${item}-${idx}`} className="flex items-start gap-2">
+          <span className="mt-1 size-1.5 rounded-full bg-[var(--oc-primary-500)]" aria-hidden="true" />
+          <span className="text-[var(--oc-fg)]">{item}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
