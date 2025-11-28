@@ -152,6 +152,39 @@ export default function Translate() {
 
   const [hydrated, setHydrated] = useState(false)
   const saveTimerRef = useRef(null)
+  const modelsRef = useRef(new Map())
+
+  const flushSnapshot = useCallback(() => {
+    if (!hydrated) return
+    try {
+      const filesToSave = (files || []).map((f) => {
+        let content = f.content
+        try {
+          const m = modelsRef.current?.get(f.id)
+          if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
+        } catch {}
+        return { id: f.id, name: f.name, content }
+      }).slice(0, 5)
+      const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
+      localStorage.setItem(LS_KEY, JSON.stringify(payload))
+    } catch {}
+  }, [files, activeFileId, hydrated])
+
+  const flushSnapshotRef = useRef(flushSnapshot)
+  useEffect(() => {
+    flushSnapshotRef.current = flushSnapshot
+  }, [flushSnapshot])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      flushSnapshotRef.current?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     try {
@@ -173,18 +206,8 @@ export default function Translate() {
       saveTimerRef.current = null
     }
     saveTimerRef.current = setTimeout(() => {
-      try {
-        const filesToSave = (files || []).map((f) => {
-          let content = f.content
-          try {
-            const m = modelsRef.current?.get(f.id)
-            if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
-          } catch {}
-          return { id: f.id, name: f.name, content }
-        }).slice(0, 5)
-        const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
-        localStorage.setItem(LS_KEY, JSON.stringify(payload))
-      } catch {}
+      flushSnapshot()
+      saveTimerRef.current = null
     }, 400)
     return () => {
       if (saveTimerRef.current) {
@@ -192,32 +215,21 @@ export default function Translate() {
         saveTimerRef.current = null
       }
     }
-  }, [files, activeFileId, hydrated])
+  }, [flushSnapshot, hydrated])
 
   useEffect(() => {
     if (!hydrated) return
-    const flush = () => {
-      try {
-        const filesToSave = (files || []).map((f) => {
-          let content = f.content
-          try {
-            const m = modelsRef.current?.get(f.id)
-            if (m && typeof m.getValue === 'function') content = String(m.getValue() ?? f.content ?? '')
-          } catch {}
-          return { id: f.id, name: f.name, content }
-        }).slice(0, 5)
-        const payload = { ts: Date.now(), activeId: activeFileId, files: filesToSave }
-        localStorage.setItem(LS_KEY, JSON.stringify(payload))
-      } catch {}
+    const handleBeforeUnload = () => flushSnapshot()
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flushSnapshot()
     }
-    const visHandler = () => { if (document.visibilityState === 'hidden') flush() }
-    window.addEventListener('beforeunload', flush)
-    document.addEventListener('visibilitychange', visHandler)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibility)
     return () => {
-      window.removeEventListener('beforeunload', flush)
-      document.removeEventListener('visibilitychange', visHandler)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [files, activeFileId, hydrated])
+  }, [flushSnapshot, hydrated])
 
   const manualLanguage = getManualLanguage(activeFileId)
   const effectiveLanguage = getEffectiveLanguage(activeFileId)
@@ -286,7 +298,6 @@ export default function Translate() {
   const editorContainerRef = useRef(null)
   const editorRef = useRef(null)
   const monacoRef = useRef(null)
-  const modelsRef = useRef(new Map())
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 })
   const [monacoReady, setMonacoReady] = useState(Boolean(window.monaco))
   useEffect(() => {
