@@ -261,7 +261,7 @@ export default function Translate() {
   }, [leftOpen, leftTrapRef])
 
   const [outputCollapsed, setOutputCollapsed] = useState(false)
-  const [splitRatio, setSplitRatio] = useState(0.65)
+  const [splitRatio, setSplitRatio] = useState(0.4)
   const isResizingRef = useRef(false)
   useEffect(() => {
     const onMove = (e) => {
