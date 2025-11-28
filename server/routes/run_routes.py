@@ -115,12 +115,12 @@ async def _run_cmd(cmd: list[str], workdir: str):
     out, err = await proc.communicate()
     return proc.returncode, out.decode(errors="ignore"), err.decode(errors="ignore")
 
-async def _prepare_cpp_debug_session(files: List[FileSpec]):
+async def _prepare_cpp_debug_session(files: List[FileSpec], entry: str, args: list[str], breakpoints: list[dict]):
     """
     For C++ debug mode:
       - write files to a temp dir
       - compile with debug symbols
-      - start gdb in MI mode
+      - start the C++ debugger shim (gdb/MI + PTY) inside the cpp image
     Returns (workdir, proc)
     """
     if not _should_use_docker():
@@ -169,7 +169,24 @@ async def _prepare_cpp_debug_session(files: List[FileSpec]):
             msg = err or out or "compilation failed"
             raise HTTPException(status_code=400, detail=f"g++ failed: {msg}")
 
-        gdb_cmd = [
+        # copy debugger shim into workdir
+        dbg_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_cpp_debugger.py"))
+        dbg_dst = os.path.join(workdir, "oc_cpp_debugger.py")
+        shutil.copy2(dbg_src, dbg_dst)
+
+        init_bp_env = json.dumps(
+            [{"file": bp.get("file"), "line": bp.get("line")} for bp in (breakpoints or [])],
+            separators=(",", ":"),
+        )
+        init_bp_path = os.path.join(workdir, "_oc_init_bps.json")
+        try:
+            with open(init_bp_path, "w", encoding="utf-8") as f:
+                f.write(init_bp_env)
+        except Exception:
+            init_bp_path = ""
+
+        cpp_args = list(args or [])
+        shim_cmd = [
             "docker",
             "run",
             "--rm",
@@ -189,15 +206,25 @@ async def _prepare_cpp_debug_session(files: List[FileSpec]):
             mount,
             "-w",
             "/work",
-            DOCKER_IMAGES["cpp"],
-            "gdb",
-            "--interpreter=mi",
-            "--quiet",
-            "./main",
+            "-e",
+            f"OC_INIT_BPS={init_bp_env}",
         ]
+        if init_bp_path:
+            shim_cmd.extend(["-e", f"OC_INIT_BPS_PATH={init_bp_path}"])
+        shim_cmd.extend(
+            [
+                DOCKER_IMAGES["cpp"],
+                "python3",
+                "-u",
+                "oc_cpp_debugger.py",
+                "./main",
+                "--",
+                *cpp_args,
+            ]
+        )
 
         gdb_proc = await asyncio.create_subprocess_exec(
-            *gdb_cmd,
+            *shim_cmd,
             cwd=workdir,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -529,7 +556,7 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
     if mode == "debug":
         if lang == "cpp":
             try:
-                workdir, proc = await _prepare_cpp_debug_session(body.files)
+                workdir, proc = await _prepare_cpp_debug_session(body.files, body.entry, body.args or [], breakpoints)
 
                 # Ensure gdb actually started; if it exited immediately, surface the error now.
                 try:
