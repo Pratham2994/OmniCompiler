@@ -42,9 +42,7 @@ try:
     from .routes.ws_routes import router as ws_router
     from .routes.translate_routes import router as translate_router
     from .routes.cfg_routes import router as cfg_router
-
-    # from .routes.insight_routes import router as insight_router
-    from .routes.debug_routes import router as debug_router
+    from .routes.insight_routes import router as insight_router
 
 except ImportError:
     try:
@@ -53,7 +51,7 @@ except ImportError:
         from server.routes.run_routes import router as run_router
         from server.routes.translate_routes import router as translate_router
         from server.routes.cfg_routes import router as cfg_router
-        # from server.routes.insight_routes import router as insight_router
+        from server.routes.insight_routes import router as insight_router
         from server.routes.run_routes import router as run_router 
     except ImportError:
         from routes.detect_routes import router as detect_router
@@ -61,7 +59,7 @@ except ImportError:
         from routes.run_routes import router as run_router
         from routes.translate_routes import router as translate_router
         from routes.cfg_routes import router as cfg_router
-        # from routes.insight_routes import router as insight_router
+        from routes.insight_routes import router as insight_router
         from routes.run_routes import router as run_router 
 
 app = FastAPI(title=FASTAPI_TITLE)
@@ -83,5 +81,4 @@ app.include_router(run_router)
 app.include_router(ws_router)
 app.include_router(translate_router)
 app.include_router(cfg_router)
-# app.include_router(insight_router)
-app.include_router(debug_router)
+app.include_router(insight_router)
