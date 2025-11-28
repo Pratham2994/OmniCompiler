@@ -40,7 +40,7 @@ def extract_features_from_line(line: str, reasons_str: str):
     reasons = [r for r in reasons_str.split(";") if r]
     return {
         "has_for": int("for_loop" in reasons or "for " in line),
-        "has_while": 0,  # Go has no 'while'; all loops are 'for'
+        "has_while": 0,                                          
         "has_if": int("if" in reasons or "else_if" in reasons or "if " in line),
         "has_else": int(line.strip().startswith("else")),
         "has_indexing": int("indexing" in reasons or ("[" in line and "]" in line)),

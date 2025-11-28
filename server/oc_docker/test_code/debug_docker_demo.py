@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 
-IMAGE = "omni-runner:python"   # <- your Python Docker image name
+IMAGE = "omni-runner:python"                                     
 CONTAINER_WORKDIR = "/work"
 
 
@@ -20,7 +20,7 @@ def start_pdb_container() -> subprocess.Popen:
     cmd = [
         "docker", "run",
         "--rm",
-        "-i",                         # keep stdin open
+        "-i",                                          
         "-v", f"{str(workdir)}:{CONTAINER_WORKDIR}",
         "-w", CONTAINER_WORKDIR,
         IMAGE,
@@ -36,10 +36,10 @@ def start_pdb_container() -> subprocess.Popen:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1,  # line-buffered
+        bufsize=1,                 
     )
 
-    # Pump stdout to our console so we can see the debugger output.
+                                                                   
     def pump_stdout():
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -63,41 +63,41 @@ def main():
     proc = start_pdb_container()
 
     try:
-        # Give pdb a moment to start and show the initial prompt.
+                                                                 
         time.sleep(1.0)
 
-        # 1) Set a breakpoint on line 13 in sample_program.py
-        #    (x = greet(f"user-{i}"))
+                                                             
+                                     
         send_cmd(proc, "b sample_program.py:13")
 
-        # 2) Continue execution until it hits the breakpoint
+                                                            
         send_cmd(proc, "c")
 
-        # Give it a bit of time to hit the breakpoint and print stack info.
+                                                                           
         time.sleep(1.0)
 
-        # 3) Show where we are (stack trace)
+                                            
         send_cmd(proc, "w")
 
-        # 4) Inspect some variables
+                                   
         send_cmd(proc, "p i")
         send_cmd(proc, "p x")
         send_cmd(proc, "p total")
         send_cmd(proc, "p locals()")
 
-        # 5) Step to next line, just to demonstrate stepping
-        send_cmd(proc, "n")  # "next" in pdb
+                                                            
+        send_cmd(proc, "n")                 
 
         time.sleep(0.5)
 
-        # 6) Continue to the end
+                                
         send_cmd(proc, "c")
 
-        # 7) Quit the debugger (in case the program hasn't finished)
+                                                                    
         time.sleep(0.5)
         send_cmd(proc, "q")
 
-        # Wait a bit for container to exit cleanly
+                                                  
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -105,7 +105,7 @@ def main():
             proc.terminate()
 
     finally:
-        # Safety cleanup
+                        
         if proc.poll() is None:
             proc.terminate()
             try:

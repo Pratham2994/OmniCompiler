@@ -1,4 +1,4 @@
-# server/docker/Dockerfile.java
+
 FROM eclipse-temurin:21-jdk-jammy
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl unzip python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Safe, commonly useful libraries (standalone jars) ----
-# Versions chosen for stability; adjust as you prefer.
+
+
 ENV LIB_DIR=/opt/java-libs
 RUN mkdir -p $LIB_DIR && \
     set -eux; \
@@ -28,18 +28,17 @@ RUN mkdir -p $LIB_DIR && \
     curl -fsSL -o $LIB_DIR/opencsv-5.9.jar \
       https://repo1.maven.org/maven2/com/opencsv/opencsv/5.9/opencsv-5.9.jar
 
-# Put all JARs on the default classpath for convenience
+
 ENV CLASSPATH=${LIB_DIR}/*:.
 
-# Non-root user & workspace
+
 RUN useradd -m runner
 WORKDIR /work
 USER runner
 
 ENV PYTHONUNBUFFERED=1
 
-# Example:
-# docker build -t omni-runner:java -f server/docker/Dockerfile.java server/docker
-# docker run --rm -it -v "$PWD/test_code:/work" omni-runner:java bash
-# javac Main.java && java Main
-#### docker build -t omni-runner:java ./java/
+
+
+
+

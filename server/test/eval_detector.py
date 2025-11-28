@@ -3,7 +3,7 @@ import sys
 import json
 from typing import List, Dict, Any, Tuple
 
-# Ensure project root on path
+                             
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -33,59 +33,59 @@ def bigify(code: str, target_bytes: int = 20000) -> str:
         cur += len(code.encode("utf-8", "ignore"))
     return "".join(out)
 
-# Base samples (retain previous)
+                                
 BASE_SAMPLES: List[Case] = [
-    # Python (kept for regression stability though not in the 5 target langs)
+                                                                             
     {"name":"py_print_small","lang":"python","code":"print('hello')\n"},
     {"name":"py_func_main","lang":"python","code":"def f():\n    pass\n\nif __name__ == '__main__':\n    print('x')\n"},
     {"name":"py_import_async","lang":"python","code":"#!/usr/bin/env python3\nfrom os import path\nasync def g():\n    pass\n"},
-    # C++
+         
     {"name":"cpp_include_main","lang":"cpp","code":"#include <iostream>\nint main(){ std::cout << \"hi\"; }\n"},
     {"name":"cpp_using_std","lang":"cpp","code":"#include \"my.h\"\nusing namespace std;\nstd::vector<int> v;\n"},
     {"name":"cpp_template","lang":"cpp","code":"template<typename T>\nT add(T a, T b){ return a+b; }\n"},
-    # Go
+        
     {"name":"go_hello_main","lang":"go","code":"package main\nimport \"fmt\"\nfunc main(){ fmt.Println(\"hi\") }\n"},
     {"name":"go_import_block","lang":"go","code":"package x\nimport (\n  \"fmt\"\n  \"os\"\n)\nfunc f(){ fmt.Printf(\"%d\", 3) }\n"},
     {"name":"go_short_decl","lang":"go","code":"package util\nfunc sum(xs []int) int { s := 0; for _,x := range xs { s += x }; return s }\n"},
-    # Java
+          
     {"name":"java_main","lang":"java","code":"package a.b;\npublic class Hello { public static void main(String[] args){ System.out.println(\"hi\"); } }\n"},
     {"name":"java_import_override","lang":"java","code":"import java.util.*;\nclass A { @Override public String toString(){ return \"\"; } }\n"},
     {"name":"java_class","lang":"java","code":"public class P { public int x; }\n"},
-    # JavaScript
+                
     {"name":"js_import_export","lang":"javascript","code":"import x from 'y';\nexport default function f(){}\n"},
     {"name":"js_cjs_console","lang":"javascript","code":"const x = require('x');\nmodule.exports = x;\nconsole.warn('w');\n"},
     {"name":"js_browser","lang":"javascript","code":"document.getElementById('a');\nwindow.location.href='/'\n"},
-    # Plain text
+                
     {"name":"plain_text_short","lang":"plain","code":"this is plain text\nno code here\n"},
     {"name":"plain_markdown","lang":"plain","code":"# Title\nSome description with arrows => but not JS code.\n"},
     {"name":"plain_config","lang":"plain","code":"key=value\nanother_key: 123\n"},
 ]
 
-# Hard negatives to avoid false positives
+                                         
 HARD_NEGATIVES: List[Case] = [
-    # Looks like Java but should be plain
+                                         
     {"name":"plain_java_import_only","lang":"plain","code":"import java.util.*;\n"},
     {"name":"plain_java_override_only","lang":"plain","code":"@Override\n"},
-    # Looks like C++ but should be plain (no robust cues)
+                                                         
     {"name":"plain_cpp_template_only","lang":"plain","code":"template<typename T>\n"},
     {"name":"plain_cpp_std_only","lang":"plain","code":"std::vector<int>\n"},
     {"name":"plain_cpp_include_midline","lang":"plain","code":"This doc mentions #include <stdio.h> in prose, not code.\n"},
-    # Looks like JS but should be plain
+                                       
     {"name":"plain_js_var_only","lang":"plain","code":"var x = 1\n"},
     {"name":"plain_js_const_only","lang":"plain","code":"const x = 2\n"},
     {"name":"plain_js_arrow_only","lang":"plain","code":"It maps a => b in text.\n"},
-    # Looks like Go but should be plain
+                                       
     {"name":"plain_go_package_only","lang":"plain","code":"package main\n"},
 ]
 
-# Build big-code variants for robustness
+                                        
 def build_big_variants(cases: List[Case]) -> List[Case]:
     bigs: List[Case] = []
     for c in cases:
-        # Create big variants for each except extremely short hard negatives that are intended as single-line traps
+                                                                                                                   
         if c["lang"] in ("cpp", "go", "java", "javascript", "python"):
             bigs.append({"name": c["name"] + "_big", "lang": c["lang"], "code": bigify(c["code"], 25000)})
-    # Also big plain text
+                         
     bigs.append({"name": "plain_lorem_big", "lang": "plain", "code": bigify("lorem ipsum plain text only\n", 25000)})
     return bigs
 
@@ -105,14 +105,14 @@ def evaluate(cases: List[Case]) -> Dict[str, Any]:
         confusion[exp][pred] += 1
         by_expected.setdefault(exp, []).append((pred, conf))
         details.append({"name": c["name"], "expected": exp, "pred": pred, "confidence": conf, "source": res.get("source")})
-    # accuracy
+              
     total = len(cases)
     correct = sum(1 for d in details if d["expected"] == d["pred"])
     acc = correct / total if total else 0.0
     return {"accuracy": acc, "total": total, "correct": correct, "confusion": confusion, "details": details}
 
 def summarize_by_lang(report: Dict[str, Any]) -> Dict[str, float]:
-    per_lang_acc: Dict[str, Tuple[int, int]] = {}  # lang -> (correct, total)
+    per_lang_acc: Dict[str, Tuple[int, int]] = {}                            
     for d in report["details"]:
         exp = d["expected"]
         ok = (d["expected"] == d["pred"])

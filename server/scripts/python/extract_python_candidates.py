@@ -2,7 +2,7 @@ import re
 import csv
 from pathlib import Path
 
-# ROOT → server/
+                
 ROOT = Path(__file__).resolve().parents[2]
 PY_DIR = ROOT / "data" / "raw" / "python"
 OUT_PATH = ROOT / "data" / "candidates" / "python_candidates.csv"

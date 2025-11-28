@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]   # /.../server
+ROOT = Path(__file__).resolve().parents[1]                
 CAND_DIR = ROOT / "data" / "candidates"
 FEAT_DIR = ROOT / "data" / "features"
 FEAT_DIR.mkdir(parents=True, exist_ok=True)
@@ -24,7 +24,7 @@ def count_parens(s: str) -> int:
     return sum(s.count(ch) for ch in "()[]{}")
 
 def num_tokens(s: str) -> int:
-    # good enough for our features
+                                  
     return len(s.split())
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:

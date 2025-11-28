@@ -1,4 +1,4 @@
-# oc_py_debugger.py
+                   
 import bdb
 import sys
 import json
@@ -23,10 +23,10 @@ def read_commands():
         try:
             cmd = json.loads(line)
         except Exception:
-            # Ignore malformed input
+                                    
             continue
-        # stdin payloads are routed to INPUT_QUEUE so that the input()
-        # override can consume them without racing debug commands.
+                                                                      
+                                                                  
         if cmd.get("type") == "stdin":
             INPUT_QUEUE.put(cmd.get("data", ""))
             continue
@@ -44,12 +44,12 @@ class OmniDebugger(bdb.Bdb):
         self.workdir = os.path.dirname(target_abspath)
         self.input_queue = INPUT_QUEUE
 
-    # ------------ Bdb callbacks ------------
+                                             
 
     def user_line(self, frame):
         """Called when we stop on a new source line."""
         if not self._is_user_frame(frame):
-            # keep stepping until we reach the user script
+                                                          
             self.set_step()
             return
 
@@ -67,7 +67,7 @@ class OmniDebugger(bdb.Bdb):
         self._emit_event("exception", info)
         self._wait_for_command(frame)
 
-    # ------------ helpers ------------
+                                       
 
     def _is_user_frame(self, frame) -> bool:
         """
@@ -150,19 +150,19 @@ class OmniDebugger(bdb.Bdb):
             t = cmd.get("type")
 
             if t == "continue":
-                # run until next breakpoint / stop
+                                                  
                 return self.set_continue()
 
             if t == "step_over":
-                # step over within this frame
+                                             
                 return self.set_next(frame)
 
             if t == "step_in":
-                # step into
+                           
                 return self.set_step()
 
             if t == "step_out":
-                # run until current frame returns
+                                                 
                 return self.set_return(frame)
 
             if t == "set_breakpoints":
@@ -191,7 +191,7 @@ class OmniDebugger(bdb.Bdb):
             if t == "stop":
                 sys.exit(0)
 
-            # Any other command types are ignored to keep the loop simple.
+                                                                          
 
 
 def main():
@@ -201,12 +201,12 @@ def main():
 
     target_script = sys.argv[1]
 
-    # background command reader
+                               
     threading.Thread(target=read_commands, daemon=True).start()
 
     dbg = OmniDebugger(target_script)
 
-    # Override input() so the debug host can feed stdin from the browser.
+                                                                         
     import builtins
 
     _orig_input = builtins.input
@@ -227,7 +227,7 @@ def main():
     builtins.input = _oc_input
 
     try:
-        # Read and compile the user's script with the correct filename
+                                                                      
         with open(target_script, "r", encoding="utf-8") as f:
             source = f.read()
 
@@ -242,7 +242,7 @@ def main():
             "__builtins__": builtins_mod,
         }
 
-        # If initial breakpoints were provided (env var), set them and do not stop at line 1.
+                                                                                             
         init_bps = os.environ.get("OC_INIT_BPS", "")
         init_bps_path = os.environ.get("OC_INIT_BPS_PATH")
         bps_applied = False
@@ -270,13 +270,13 @@ def main():
             _apply_breakpoints(init_bps)
 
         if not bps_applied:
-            # Default: stop on the first line so the client can set breakpoints interactively
+                                                                                             
             dbg.set_step()
 
-        # Run the compiled code object under the debugger
+                                                         
         dbg.run(code, globs, globs)
 
-        # Let client know the program finished normally
+                                                       
         sys.stdout.write(json.dumps({"event": "terminated", "body": {}}) + "\n")
         sys.stdout.flush()
 

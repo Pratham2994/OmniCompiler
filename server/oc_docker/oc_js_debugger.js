@@ -1,5 +1,5 @@
-// Node inspector bridge that debugs the user program in a child process.
-// Communicates over stdin/stdout JSON with the host (same schema as the Python/C++ shims).
+
+
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -20,7 +20,7 @@ try {
         WebSocketImpl = undici.WebSocket;
       }
     } catch (e) {
-      /* ignore */
+      
     }
   }
 }
@@ -229,8 +229,8 @@ if (!entry) {
 const absEntry = path.resolve(entry);
 const workdir = path.dirname(absEntry);
 
-// Write a tiny browser-like prompt polyfill so user code with prompt() works in Node.
-// It synchronously reads from stdin until newline and mirrors the prompt text to stdout.
+
+
 const promptPolyfillPath = path.join(workdir, "_oc_prompt_polyfill.js");
 try {
   const polySrc = `
@@ -262,7 +262,7 @@ try {
   `;
   fs.writeFileSync(promptPolyfillPath, polySrc, { encoding: "utf8" });
 } catch (e) {
-  // If writing fails, continue without polyfill; prompt() will simply be undefined.
+  
 }
 
 function send(obj) {
@@ -270,7 +270,7 @@ function send(obj) {
     process.stdout.write(JSON.stringify(obj) + "\n");
     process.stdout.flush?.();
   } catch (e) {
-    // ignore
+    
   }
 }
 
@@ -288,14 +288,14 @@ function safeVal(v) {
   return typeof v;
 }
 
-// Inspector session state
+
 let inspectorWS = null;
 let inspectorId = 0;
 const pending = new Map();
 let pausedFrame = null;
 let isPaused = false;
 let skipInitialPause = true;
-const bpMap = new Map(); // key `${file}:${line}` -> breakpointId
+const bpMap = new Map(); 
 
 function inspectorPost(method, params = {}) {
   return new Promise((resolve, reject) => {
@@ -342,8 +342,8 @@ function onInspectorMessage(raw) {
   } else if (msg.method === "Debugger.resumed") {
     isPaused = false;
   } else if (msg.method === "Runtime.executionContextCreated") {
-    // If the process is sitting at the initial break waiting for the debugger,
-    // signal paused so a 'continue' will be accepted right after attach.
+    
+    
     isPaused = true;
   }
 }
@@ -367,7 +367,7 @@ async function collectLocals(frame) {
         }
       }
     } catch (e) {
-      // ignore failures per scope
+      
     }
   }
   return locals;
@@ -407,7 +407,7 @@ async function clearBreakpoints() {
     try {
       await inspectorPost("Debugger.removeBreakpoint", { breakpointId: id });
     } catch (e) {
-      // ignore
+      
     }
   }
   bpMap.clear();
@@ -434,7 +434,7 @@ async function setBreakpoints(bps) {
     try {
       await addBreakpoint(bp);
     } catch (e) {
-      // ignore failed bp
+      
     }
   }
   send({ event: "breakpoints_set", body: { ok: true } });
@@ -488,7 +488,7 @@ async function handleCommand(cmd) {
       try {
         await inspectorPost("Debugger.removeBreakpoint", { breakpointId: id });
       } catch (e) {
-        // ignore
+        
       }
       bpMap.delete(key);
     }
@@ -508,7 +508,7 @@ async function handleCommand(cmd) {
         child.stdin.write(data);
       }
     } catch (e) {
-      // ignore broken pipe
+      
     }
     return;
   }
@@ -516,13 +516,13 @@ async function handleCommand(cmd) {
     try {
       child?.kill();
     } catch (e) {
-      // ignore
+      
     }
     process.exit(0);
   }
 }
 
-// Spawn the user program under inspector and bridge inspector events/commands.
+
 const child = spawn(
   process.execPath,
   ["--inspect-brk=0", "--require", promptPolyfillPath, absEntry, ...userArgs],
@@ -549,7 +549,7 @@ function emitOutput(text, stream = "stdout") {
     }
   }
   send({ event: "output", body: { text, stream } });
-  // Heuristic: if stdout does not end with a newline, surface await_input so UI can enable the input box.
+  
   if (stream === "stdout" && !text.endsWith("\n")) {
     send({ event: "await_input", body: { prompt: "" } });
   }
@@ -561,7 +561,7 @@ child.stdout.on("data", (buf) => {
 child.stderr.on("data", (buf) => {
   const text = buf.toString();
   emitOutput(text, "stderr");
-  const m = text.match(/ws:\/\/[^\s]+/); // inspector announces: ws://127.0.0.1:PORT/...
+  const m = text.match(/ws:\/\/[^\s]+/); 
   if (m && !inspectorWS) {
     connectInspector(m[0]).catch((e) => {
       send({ event: "exception", body: { message: String(e) } });
@@ -587,22 +587,22 @@ async function connectInspector(wsUrl) {
         await inspectorPost("Debugger.enable");
         await inspectorPost("Debugger.setPauseOnExceptions", { state: "none" });
 
-        // initial breakpoints from env
+        
         const initBps = process.env.OC_INIT_BPS;
         if (initBps) {
           try {
             const bps = JSON.parse(initBps);
             await setBreakpoints(bps);
           } catch (e) {
-            // ignore invalid
+            
           }
         }
 
-        // If Node is waiting for the debugger (inspect-brk), let it run now.
+        
         try {
           await inspectorPost("Runtime.runIfWaitingForDebugger");
         } catch (e) {
-          // ignore
+          
         }
         resolve();
       } catch (e) {
@@ -625,7 +625,7 @@ async function connectInspector(wsUrl) {
   });
 }
 
-// Command reader
+
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 rl.on("line", (line) => {
   if (!line.trim()) return;
@@ -635,6 +635,6 @@ rl.on("line", (line) => {
       send({ event: "exception", body: { message: String(e) } });
     });
   } catch (e) {
-    // ignore malformed
+    
   }
 });

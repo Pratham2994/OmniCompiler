@@ -7,13 +7,13 @@ from typing import Any, Dict, List, Optional
 from google import genai
 
 try:
-    # Reuse language normalization from the translation client for consistent ids.
+                                                                                  
     from .gemini_client import normalize_language_id
-except ImportError:  # pragma: no cover
+except ImportError:                    
     try:
         from server.llm.gemini_client import normalize_language_id
     except ImportError:
-        from llm.gemini_client import normalize_language_id  # type: ignore
+        from llm.gemini_client import normalize_language_id                
 
 __all__ = ["GeminiInsightError", "analyze_with_gemini"]
 
@@ -46,7 +46,7 @@ def _run_completion(prompt: str) -> str:
     client = genai.Client(api_key=_resolve_api_key())
     try:
         response = client.models.generate_content(model=DEFAULT_INSIGHT_MODEL, contents=prompt)
-    except Exception as exc:  # pragma: no cover - network/SDK failures
+    except Exception as exc:                                           
         raise GeminiInsightError(f"Gemini insight request failed: {exc}") from exc
 
     text = getattr(response, "text", None)

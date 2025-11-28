@@ -7,22 +7,22 @@ from pydantic import BaseModel, Field
 
 try:
     from ..controller.detector import detect as run_detect
-except ImportError:  # pragma: no cover
+except ImportError:                    
     try:
         from server.controller.detector import detect as run_detect
     except ImportError:
-        from controller.detector import detect as run_detect  # type: ignore
+        from controller.detector import detect as run_detect                
 
 try:
     from ..llm.gemini_insights import analyze_with_gemini, GeminiInsightError
     from ..llm.gemini_client import normalize_language_id
-except ImportError:  # pragma: no cover
+except ImportError:                    
     try:
         from server.llm.gemini_insights import analyze_with_gemini, GeminiInsightError
         from server.llm.gemini_client import normalize_language_id
     except ImportError:
-        from llm.gemini_insights import analyze_with_gemini, GeminiInsightError  # type: ignore
-        from llm.gemini_client import normalize_language_id  # type: ignore
+        from llm.gemini_insights import analyze_with_gemini, GeminiInsightError                
+        from llm.gemini_client import normalize_language_id                
 
 router = APIRouter()
 
@@ -71,7 +71,7 @@ def _detect_language_from_files(files: List[InsightFile]) -> str:
     }
     try:
         result = run_detect(payload) or {}
-    except Exception as exc:  # pragma: no cover - detector failure should bubble
+    except Exception as exc:                                                     
         raise HTTPException(status_code=500, detail=f"Language detection failed: {exc}") from exc
     raw = str(result.get("lang") or "").lower()
     if raw == "plain":

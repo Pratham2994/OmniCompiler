@@ -5,11 +5,11 @@ from pygments.lexers import guess_lexer
 from pygments.util import ClassNotFound
 
 
-# -------------------------
-# Config: server defaults
-# -------------------------
-PRINT_SNIPPETS = False            # True to print assembled snippet (truncated)
-LOG_VERBOSE    = False            # True to log detailed internals
+                           
+                         
+                           
+PRINT_SNIPPETS = False                                                         
+LOG_VERBOSE    = False                                            
 SNIPPET_PRINT_WIDTH = 1500
 
 def log(*args, **kwargs):
@@ -22,11 +22,11 @@ def log_json(title, obj):
     except Exception:
         print(str(obj)[:4000])
 
-# -------------------------
-# Server-side implementation
-# -------------------------
+                           
+                            
+                           
 
-# Precompiled fingerprints (strong=2 pts; weak=1 pt)
+                                                    
 FP = {
     "go": [
         re.compile(r"^\s*package\s+\w+\b", re.M),
@@ -74,7 +74,7 @@ FP = {
     ],
 }
 LANGS = list(FP.keys())
-# --- Add these helpers near the top (after FP/LANGS) ---
+                                                         
 
 def _best_two(scores: dict[str, int]):
     ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
@@ -83,7 +83,7 @@ def _best_two(scores: dict[str, int]):
     return top, second, ranked
 
 def _is_ambiguous(top, second, margin: int = 1):
-    # ambiguous if scores are equal or within 'margin'
+                                                      
     return second[1] >= 0 and (top[1] - second[1]) <= margin
 
 def _conflict_policy(snippet: str, top_lang: str, second_lang: str) -> str:
@@ -93,18 +93,18 @@ def _conflict_policy(snippet: str, top_lang: str, second_lang: str) -> str:
     """
     pair = {top_lang, second_lang}
 
-    # Python vs JavaScript
+                          
     if pair == {"python", "javascript"}:
-        # If Python has a main guard or from-imports, it's likely Python-only
+                                                                             
         if "__name__" in snippet or re.search(r"^\s*from\s+\w+", snippet, re.M):
             return "prefer_top" if top_lang == "python" else "prefer_second"
-        # If JS has import/export, it's likely JS-only
-        if re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) \
+                                                      
+        if re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M)\
            or re.search(r"\bexport\s+(default|const|function|class)\b", snippet):
             return "prefer_top" if top_lang == "javascript" else "prefer_second"
         return "unknown"
 
-    # Java vs Python: semicoloned imports and @Override favor Java; 'from ... import' favors Python
+                                                                                                   
     if pair == {"java", "python"}:
         if re.search(r"^\s*import\s+[\w.]+\s*;", snippet, re.M) or "@Override" in snippet:
             return "prefer_top" if top_lang == "java" else "prefer_second"
@@ -112,7 +112,7 @@ def _conflict_policy(snippet: str, top_lang: str, second_lang: str) -> str:
             return "prefer_top" if top_lang == "python" else "prefer_second"
         return "unknown"
 
-    # For other pairs: default to unknown on ties
+                                                 
     return "unknown"
 
 
@@ -154,22 +154,22 @@ def _score_fingerprints(snippet: str) -> Dict[str, int]:
             m = r.search(snippet)
             if m:
                 pat = r.pattern
-                # Mark certain cues as "weak" to avoid false positives on plain text or minimal fragments
+                                                                                                         
                 weak = False
                 if "=>" in pat:
                     weak = True
-                # C++ weak cues
+                               
                 if "std::" in pat:
                     weak = True
                 if "template\\s*<" in pat:
                     weak = True
-                # JavaScript weak cues: bare const|let|var assignment without other JS signals
+                                                                                              
                 if "(?:const|let|var)" in pat and "=" in pat:
                     weak = True
                 pts = 1 if weak else 2
                 s += pts
                 if LOG_VERBOSE:
-                    # Show a tiny excerpt around the match
+                                                          
                     start = max(m.start() - 30, 0)
                     end   = min(m.end() + 30, len(snippet))
                     excerpt = snippet[start:end].replace("\n", "\\n")
@@ -199,16 +199,16 @@ def _pygments_guess(snippet: str) -> Optional[str]:
     if LOG_VERBOSE:
         log(f"[pygments] raw alias/name: {alias}")
     MAP = {
-        # Python family
+                       
         "python":"python", "py":"python", "python3":"python", "python2":"python", "py3":"python", "ipython":"python", "pycon":"python",
-        # JavaScript/TypeScript family (collapsed to 'javascript')
+                                                                  
         "javascript":"javascript", "js":"javascript", "node":"javascript", "nodejs":"javascript", "ecmascript":"javascript",
         "jsx":"javascript", "mjs":"javascript", "cjs":"javascript", "typescript":"javascript", "ts":"javascript", "tsx":"javascript",
-        # Java
+              
         "java":"java",
-        # C++
+             
         "cpp":"cpp", "c++":"cpp", "cxx":"cpp", "arduino":"cpp",
-        # Go
+            
         "go":"go", "golang":"go",
     }
     mapped = MAP.get(alias)
@@ -227,39 +227,39 @@ def _looks_like_plain_trap(snippet: str) -> bool:
     that are likely prose or incomplete code fragments.
     Prefer returning plain text when these patterns occur without stronger cues.
     """
-    # keep only non-empty lines for quick checks
+                                                
     lines = [ln for ln in snippet.splitlines() if ln.strip()]
     short = len(lines) <= 3
-    # Java: single import or lone @Override without any class/public/static/main/println
-    if re.fullmatch(r"\s*import\s+(?:static\s+)?[\w.]+(?:\.\*)?\s*;.*", (lines[0] if lines else ""), flags=0) and \
+                                                                                        
+    if re.fullmatch(r"\s*import\s+(?:static\s+)?[\w.]+(?:\.\*)?\s*;.*", (lines[0] if lines else ""), flags=0) and\
        not re.search(r"\b(class|public|static|System\.out\.println)\b", snippet):
         return True
     if "@Override" in snippet and not re.search(r"\b(class|public)\b", snippet):
         return True
-    # C++: only template&lt;...> or std:: symbol mention, no include/main/cout/cin/namespace
-    if short and (re.search(r"\btemplate\s*<", snippet) or re.search(r"\bstd::\w+", snippet)) and \
-       not re.search(r"^\s*#\s*include", snippet, re.M) and \
-       not re.search(r"\bint\s+main\s*\(", snippet) and \
-       not re.search(r"\busing\s+namespace\s+std\s*;", snippet) and \
+                                                                                            
+    if short and (re.search(r"\btemplate\s*<", snippet) or re.search(r"\bstd::\w+", snippet)) and\
+       not re.search(r"^\s*#\s*include", snippet, re.M) and\
+       not re.search(r"\bint\s+main\s*\(", snippet) and\
+       not re.search(r"\busing\s+namespace\s+std\s*;", snippet) and\
        not re.search(r"\bcout\s*<<|\bcin\s*>>", snippet):
         return True
-    # JavaScript: only const/let/var assignment without other JS cues (import/export/require/console/dom)
-    if short and re.search(r"^\s*(?:const|let|var)\s+\w+\s*=", snippet, re.M) and \
-       not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and \
-       not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and \
-       not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and \
-       not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and \
-       not re.search(r"\bdocument\.getElementById\s*\(", snippet) and \
+                                                                                                         
+    if short and re.search(r"^\s*(?:const|let|var)\s+\w+\s*=", snippet, re.M) and\
+       not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and\
+       not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and\
+       not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and\
+       not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and\
+       not re.search(r"\bdocument\.getElementById\s*\(", snippet) and\
        not re.search(r"\bwindow\.", snippet):
         return True
-    # Go: only package line, no import nor func
-    if short and re.search(r"^\s*package\s+\w+\s*$", snippet, re.M) and \
-       not re.search(r"^\s*import\b", snippet, re.M) and \
+                                               
+    if short and re.search(r"^\s*package\s+\w+\s*$", snippet, re.M) and\
+       not re.search(r"^\s*import\b", snippet, re.M) and\
        not re.search(r"^\s*func\b", snippet, re.M):
         return True
     return False
 
-# --- Replace your existing server_detect with this version ---
+                                                               
 
 def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
     log_json("server.request", {k: (v if k not in ("first_chunk","last_chunk","more_chunks") else f"<{k} omitted for brevity>") for k,v in request.items()})
@@ -275,22 +275,22 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
 
     snippet = _assemble(request.get("first_chunk",""), request.get("last_chunk",""), request.get("more_chunks"))
 
-    # Heuristic regex
+                     
     scores = _score_fingerprints(snippet)
 
-    # Suppress weak JavaScript matches caused by prose "=>" without any stronger JS cues
-    # This avoids plain text/markdown being mislabeled as JS due to the weak arrow signal.
+                                                                                        
+                                                                                          
     if scores.get("javascript", 0) <= 1 and "=>" in snippet:
-        if not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and \
-           not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and \
-           not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and \
-           not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and \
-           not re.search(r"\bdocument\.getElementById\s*\(", snippet) and \
-           not re.search(r"\bwindow\.", snippet) and \
+        if not re.search(r"^\s*import\s+.+\s+from\s+['\"].+['\"]\s*;?", snippet, re.M) and\
+           not re.search(r"\bexport\s+(default|const|function|class)\b", snippet) and\
+           not re.search(r"\b(module\.exports|require\s*\()\b", snippet) and\
+           not re.search(r"\bconsole\.(?:log|warn|error)\s*\(", snippet) and\
+           not re.search(r"\bdocument\.getElementById\s*\(", snippet) and\
+           not re.search(r"\bwindow\.", snippet) and\
            not re.search(r"^\s*(?:const|let|var)\s+\w+\s*=", snippet, re.M):
             scores["javascript"] = 0
 
-    # Plain-text trap: if snippet looks like a known "single-cue" fragment and regex evidence is weak, classify as plain
+                                                                                                                        
     if _looks_like_plain_trap(snippet):
         ranked_vals = sorted(scores.values(), reverse=True)
         top_val = ranked_vals[0] if ranked_vals else 0
@@ -304,20 +304,20 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
     if LOG_VERBOSE:
         log(f"[decision] regex top: {top_lang}={top_score}, second: {sec_lang}={sec_score}")
 
-    # --- NEW: conflict handling for ties/near-ties ---
+                                                       
     if top_score == 0:
-        # If this is a known plain-text trap, prefer plain over a risky pygments guess
+                                                                                      
         if _looks_like_plain_trap(snippet):
             resp = {"status":"ok","lang":"plain","confidence":0.25,"source":"plain_trap","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
-        # No signal at all → try pygments or plain
+                                                  
         pg = _pygments_guess(snippet)
         if pg:
             resp = {"status":"ok","lang":pg,"confidence":0.70,"source":"pygments","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
-        # verify? if file is small, no more to ask → unknown
+                                                            
         if mode == "verify":
             if total_len > 8192 and not request.get("more_chunks"):
                 mid_start = max(total_len//2 - 4096, 0)
@@ -328,13 +328,13 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
         log_json("server.response", resp)
         return resp
 
-    # strong clear win
+                      
     if top_score >= 3 and top_score - sec_score >= 2:
         resp = {"status":"ok","lang":top_lang,"confidence":0.90,"source":"fingerprints","used_chunks": _used_chunks(request)}
         log_json("server.response", resp)
         return resp
 
-    # ambiguous / near tie
+                          
     if _is_ambiguous((top_lang, top_score), (sec_lang, sec_score), margin=0):
         log(f"[conflict] ambiguous between {top_lang} and {sec_lang} at score {top_score}=={sec_score}")
         policy = _conflict_policy(snippet, top_lang, sec_lang)
@@ -346,24 +346,24 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
             resp = {"status":"ok","lang":sec_lang,"confidence":0.80,"source":"fingerprints_tiebreak","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
-        # No policy match → ask for more in verify; else unknown/low
+                                                                    
         if mode == "verify":
             if total_len > 8192 and not request.get("more_chunks"):
                 mid_start = max(total_len//2 - 4096, 0)
                 resp = {"status":"need_more","reason":"ambiguous_"+top_lang+"_vs_"+sec_lang,"request_ranges":[{"start": int(mid_start), "len": 8192}]}
                 log_json("server.response", resp)
                 return resp
-            # tiny file: cannot request more → unknown
+                                                      
             resp = {"status":"ok","lang":"plain","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
         else:
-            # in AUTO mode: return low-confidence unknown (don’t mislead the badge)
+                                                                                   
             resp = {"status":"ok","lang":"plain","confidence":0.30,"source":"ambiguous","used_chunks": _used_chunks(request)}
             log_json("server.response", resp)
             return resp
 
-    # not a strict tie, but still weak → try pygments
+                                                     
     pg = _pygments_guess(snippet)
     if pg:
         conf = 0.70
@@ -374,7 +374,7 @@ def server_detect(request: Dict[str, Any]) -> Dict[str, Any]:
         log_json("server.response", resp)
         return resp
 
-    # fallback: weak best
+                         
     resp = {"status":"ok","lang":top_lang,"confidence":0.50,"source":"fallback","used_chunks": _used_chunks(request)}
     log_json("server.response", resp)
     return resp

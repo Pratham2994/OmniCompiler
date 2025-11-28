@@ -5,10 +5,10 @@ import uuid, re, time, asyncio, tempfile, shutil, os, json, shlex
 
 router = APIRouter()
 
-# In-memory sessions for now (you can import this in ws_routes later)
+                                                                     
 SESSIONS: dict[str, dict] = {}
 
-# ---------- Models ----------
+                              
 class FileSpec(BaseModel):
     name: str
     content: str
@@ -18,33 +18,33 @@ class BreakpointSpec(BaseModel):
     line: int
 
 class RunReq(BaseModel):
-    lang: str                                      # e.g., "python" | "javascript"
-    entry: str                                     # e.g., "main.py"
+    lang: str                                                                     
+    entry: str                                                      
     args: Optional[List[str]] = Field(default_factory=list)
     files: List[FileSpec]
-    mode: Optional[str] = Field(default="run")     # "run" | "debug"
+    mode: Optional[str] = Field(default="run")                      
     breakpoints: Optional[List[BreakpointSpec]] = Field(default_factory=list)
 
 class RunResp(BaseModel):
     session_id: str
     ws_url: str
 
-# ---------- Validation helpers ----------
-SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")  # no slashes/paths, no spaces
-ALLOWED_LANGS = {"python", "javascript", "java", "cpp", "go"}  # explicitly supported; plaintext is not allowed
+                                          
+SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")                               
+ALLOWED_LANGS = {"python", "javascript", "java", "cpp", "go"}                                                  
 ALLOWED_MODES = {"run", "debug"}
 
 def _is_safe_name(name: str) -> bool:
     return bool(SAFE_NAME.match(name))
 
 def _validate_request(req: RunReq) -> None:
-    # mode must be supported
+                            
     mode = (req.mode or "run").strip().lower()
     if mode not in ALLOWED_MODES:
         allowed_modes = ", ".join(sorted(ALLOWED_MODES))
         raise HTTPException(status_code=400, detail=f"unsupported mode: {req.mode!r}. Choose one of: {allowed_modes}")
 
-    # 0) language must be allowed and not plaintext
+                                                   
     lang = (req.lang or "").strip().lower()
     if lang not in ALLOWED_LANGS:
         allowed = ", ".join(sorted(ALLOWED_LANGS))
@@ -53,28 +53,28 @@ def _validate_request(req: RunReq) -> None:
             detail=f"unsupported language: {req.lang!r}. Choose one of: {allowed}"
         )
 
-    # 1) filenames must be safe
+                               
     for f in req.files:
         if not _is_safe_name(f.name):
             raise HTTPException(status_code=400, detail=f"invalid filename: {f.name}")
     if not _is_safe_name(req.entry):
         raise HTTPException(status_code=400, detail=f"invalid entry: {req.entry}")
 
-    # 2) entry must exist among files
+                                     
     names = {f.name for f in req.files}
     if req.entry not in names:
         raise HTTPException(status_code=400, detail=f"entry file not found: {req.entry}")
 
-    # 3) (optional) simple limits
+                                 
     MAX_FILES = 50
-    MAX_BYTES_PER_FILE = 200_000  # 200 KB/file (tweak as you need)
+    MAX_BYTES_PER_FILE = 200_000                                   
     if len(req.files) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"too many files (>{MAX_FILES})")
     for f in req.files:
         if len(f.content.encode("utf-8", "ignore")) > MAX_BYTES_PER_FILE:
             raise HTTPException(status_code=400, detail=f"file too large: {f.name}")
 
-    # 4) validate breakpoints (if any)
+                                      
     for bp in req.breakpoints or []:
         if not _is_safe_name(bp.file):
             raise HTTPException(status_code=400, detail=f"invalid breakpoint file: {bp.file}")
@@ -82,7 +82,7 @@ def _validate_request(req: RunReq) -> None:
             raise HTTPException(status_code=400, detail=f"invalid breakpoint line: {bp.line}")
 
 def _build_ws_url(request: Request, sid: str) -> str:
-    # Derive host from the incoming HTTP request; swap scheme http->ws, https->wss
+                                                                                  
     scheme = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host") or request.url.netloc
     return f"{scheme}://{host}/ws/run/{sid}"
@@ -169,7 +169,7 @@ async def _prepare_cpp_debug_session(files: List[FileSpec], entry: str, args: li
             msg = err or out or "compilation failed"
             raise HTTPException(status_code=400, detail=f"g++ failed: {msg}")
 
-        # copy debugger shim into workdir
+                                         
         dbg_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_cpp_debugger.py"))
         dbg_dst = os.path.join(workdir, "oc_cpp_debugger.py")
         shutil.copy2(dbg_src, dbg_dst)
@@ -253,7 +253,7 @@ async def _prepare_python_debug_session(files: List[FileSpec], entry: str, break
     try:
         _write_files(files, workdir)
 
-        # copy debugger shim
+                            
         dbg_src = os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_py_debugger.py")
         dbg_src = os.path.abspath(dbg_src)
         dbg_dst = os.path.join(workdir, "oc_py_debugger.py")
@@ -374,7 +374,7 @@ async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoin
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Ensure debugger actually started; if it exited immediately (e.g., missing image), surface error now.
+                                                                                                              
         try:
             rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
         except asyncio.TimeoutError:
@@ -412,7 +412,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
         if not os.path.exists(entry_path):
             raise HTTPException(status_code=400, detail="entry file not found after write")
 
-        # Reject packages (current run mode assumes default package)
+                                                                    
         try:
             with open(entry_path, "r", encoding="utf-8") as f:
                 head = f.read(2048)
@@ -442,7 +442,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
             msg = err or out or "javac failed"
             raise HTTPException(status_code=400, detail=msg)
 
-        # copy debugger shim
+                            
         dbg_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "oc_docker", "oc_java_debugger.py"))
         dbg_dst = os.path.join(workdir, "oc_java_debugger.py")
         shutil.copy2(dbg_src, dbg_dst)
@@ -485,7 +485,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Ensure shim actually started; if it exited immediately, surface error now.
+                                                                                    
         try:
             rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
         except asyncio.TimeoutError:
@@ -545,7 +545,7 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
             "dlv", "exec", "./app", "--log",
         ]
 
-        # Start dlv; if it dies immediately, surface its output now.
+                                                                    
         proc = await asyncio.create_subprocess_exec(
             *dlv_cmd,
             cwd=workdir,
@@ -566,7 +566,7 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
         shutil.rmtree(workdir, ignore_errors=True)
         raise
 
-# ---------- Route ----------
+                             
 @router.post("/run", response_model=RunResp)
 async def create_run(request: Request, body: RunReq) -> RunResp:
     _validate_request(body)
@@ -592,7 +592,7 @@ async def create_run(request: Request, body: RunReq) -> RunResp:
             try:
                 workdir, proc = await _prepare_cpp_debug_session(body.files, body.entry, body.args or [], breakpoints)
 
-                # Ensure gdb actually started; if it exited immediately, surface the error now.
+                                                                                               
                 try:
                     rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
                 except asyncio.TimeoutError:
