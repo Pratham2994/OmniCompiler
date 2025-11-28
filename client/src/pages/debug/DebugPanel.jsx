@@ -45,6 +45,7 @@ export default function DebugPanel({
   statusMessage,
   exceptionInfo,
   awaitingPrompt,
+  onBlockedDebuggerAction,
 }) {
   const traceScrollRef = useRef(null)
   const stdinInputRef = useRef(null)
@@ -59,6 +60,65 @@ export default function DebugPanel({
     const id = requestAnimationFrame(() => node.focus())
     return () => cancelAnimationFrame(id)
   }, [waitingForInput])
+
+  const renderDebuggerButtons = (extraClasses = '') => {
+    const disableByState = !running
+    const blocked = waitingForInput
+    const continueTitle = blocked ? 'Program is waiting for input' : 'Continue / Resume'
+    const stepTitle = blocked ? 'Program is waiting for input' : 'Step over'
+    const stepInTitle = blocked ? 'Program is waiting for input' : 'Step into'
+    const stepOutTitle = blocked ? 'Program is waiting for input' : 'Step out'
+    const blockedClass = blocked ? 'opacity-60 cursor-not-allowed' : ''
+
+    const handleAction = (callback) => (event) => {
+      if (blocked) {
+        event?.preventDefault()
+        onBlockedDebuggerAction?.()
+        return
+      }
+      callback?.()
+    }
+
+    return (
+      <div className={`flex flex-wrap items-center gap-2 ${extraClasses}`}>
+        <button
+          className={`oc-btn ${blockedClass}`}
+          onClick={handleAction(onContinue)}
+          disabled={disableByState}
+          title={continueTitle}
+        >
+          <Icon name="play" /> Continue
+        </button>
+        <button
+          className={`oc-btn ${blockedClass}`}
+          onClick={handleAction(onStepOver)}
+          disabled={disableByState}
+          title={stepTitle}
+        >
+          Next
+        </button>
+        <button
+          className={`oc-btn ${blockedClass}`}
+          onClick={handleAction(onStepIn)}
+          disabled={disableByState}
+          title={stepInTitle}
+        >
+          Step In
+        </button>
+        <button
+          className={`oc-btn ${blockedClass}`}
+          onClick={handleAction(onStepOut)}
+          disabled={disableByState}
+          title={stepOutTitle}
+        >
+          Step Out
+        </button>
+        <button className="oc-icon-btn" onClick={stopDebugSession} disabled={!running} title="Stop debugger">
+          <Icon name="stop" />
+        </button>
+      </div>
+    )
+  }
 
   const renderTraceBody = () => {
     if (effectiveLanguage === 'plaintext') {
@@ -210,23 +270,7 @@ export default function DebugPanel({
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button className="oc-btn" onClick={onContinue} disabled={!running} title="Continue / Resume">
-                  <Icon name="play" /> Continue
-                </button>
-                <button className="oc-btn" onClick={onStepOver} disabled={!running} title="Step over">
-                  Next
-                </button>
-                <button className="oc-btn" onClick={onStepIn} disabled={!running} title="Step into">
-                  Step In
-                </button>
-                <button className="oc-btn" onClick={onStepOut} disabled={!running} title="Step out">
-                  Step Out
-                </button>
-                <button className="oc-icon-btn" onClick={stopDebugSession} disabled={!running} title="Stop debugger">
-                  <Icon name="stop" />
-                </button>
-              </div>
+              {renderDebuggerButtons()}
             </div>
 
             <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -362,10 +406,13 @@ export default function DebugPanel({
 
         {debugTab === 'output' && (
           <div className="flex-1 min-h-0 flex flex-col gap-3 text-sm">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)]">Program Output</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--oc-muted)] order-1">Program Output</div>
+              <div className="flex-1 min-w-[260px] order-3 sm:order-2">
+                {renderDebuggerButtons('justify-start')}
+              </div>
               <button
-                className="oc-icon-btn"
+                className="oc-icon-btn order-2 sm:order-3 sm:ml-auto"
                 onClick={onClearOutput}
                 aria-label="Clear output"
                 title="Clear output"

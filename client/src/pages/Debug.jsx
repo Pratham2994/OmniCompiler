@@ -308,10 +308,13 @@ export default function Debug() {
   }, [settingsOpen, settingsTrapRef])
 
   const [showToast, setShowToast] = useState(null)
-  const triggerToast = (msg) => {
+  const triggerToast = useCallback((msg) => {
     setShowToast(msg)
     setTimeout(() => setShowToast(null), 1500)
-  }
+  }, [])
+  const notifyAwaitingInput = useCallback(() => {
+    triggerToast('Program is waiting for input. Provide stdin to continue.')
+  }, [triggerToast])
 
   const onNewFile = () => {
     if (files.length >= 5) { triggerToast('Max 5 files allowed'); return }
@@ -585,6 +588,7 @@ export default function Debug() {
                 onTraceStepClick={handleStepClick}
                 typeLegend={typeLegend}
                 typeColor={typeColor}
+                onBlockedDebuggerAction={notifyAwaitingInput}
               />
             )}
           </AnimatePresence>
@@ -824,6 +828,7 @@ function DebugPanelContainer(props) {
       statusMessage={statusMessage}
       exceptionInfo={exceptionInfo}
       awaitingPrompt={awaitingPrompt}
+      onBlockedDebuggerAction={props.onBlockedDebuggerAction}
     />
   )
 }
