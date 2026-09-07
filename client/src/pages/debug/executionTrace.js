@@ -553,7 +553,7 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint 
     return result
   }
 
-  return cfgGroups.flatMap(group => {
+  const allSteps = cfgGroups.flatMap(group => {
     const fileLabel = labelForFile(group.file)
     let stepsForFile = [makeStep({
       type: 'entry',
@@ -615,5 +615,20 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint 
     })
 
     return stepsForFile
+  })
+
+  let previousFunc
+  let previousFile
+  return allSteps.map(step => {
+    const funcKey = step.func || null
+    const fileKey = step.file || null
+    const decorated = {
+      ...step,
+      showFunc: funcKey !== previousFunc,
+      showFile: fileKey !== previousFile,
+    }
+    previousFunc = funcKey
+    previousFile = fileKey
+    return decorated
   })
 }

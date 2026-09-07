@@ -57,6 +57,14 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     return df_full
 
 def main():
+    if not CAND_DIR.exists():
+        raise SystemExit(
+            str(CAND_DIR) + " does not exist.\n"
+            "The intermediate candidate files are not retained in this repository; "
+            "the released artefact is the line-level annotations in data/features/. "
+            "To regenerate this stage you need the original sources under data/raw/ "
+            "and must run the per-language extractors in scripts/<language>/ first.")
+
     for lang, filename in LANG_FILES.items():
         in_path = CAND_DIR / filename
         if not in_path.exists():

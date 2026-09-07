@@ -868,7 +868,7 @@ html, body, #root {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   margin-left: var(--step-indent, 0);
   background: var(--oc-surface);
   border: 1px solid var(--oc-border);
@@ -879,7 +879,7 @@ html, body, #root {
     border-color 0.15s ease,
     box-shadow 0.15s ease,
     transform 0.15s ease;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .oc-exec-step:hover {
@@ -927,8 +927,9 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--oc-muted);
   background: var(--oc-surface-2);
   border: 1px solid var(--oc-border);
@@ -969,7 +970,7 @@ html, body, #root {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 
@@ -985,7 +986,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--oc-primary-500);
   background: color-mix(in srgb, var(--oc-primary-500) 12%, transparent);
@@ -998,9 +999,9 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -1041,9 +1042,10 @@ html, body, #root {
 
 
 .oc-exec-step-loc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--oc-muted);
   font-family: ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
 
@@ -1051,7 +1053,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--oc-muted);
   padding: 2px 6px;
@@ -1065,9 +1067,9 @@ html, body, #root {
   background: var(--oc-surface-2);
   border: 1px solid var(--oc-border);
   border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  line-height: 1.4;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.45;
   overflow: hidden;
 }
 

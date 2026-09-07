@@ -1,3 +1,16 @@
+"""Train and persist the per-language breakpoint models.
+
+This script fits the models the running server loads. Its printed scores are
+NOT the evaluation reported for this project and should not be quoted: it
+splits rows at random, so lines from one source file land on both sides of
+the split, and the label is derived from the same `reasons` field that most
+features encode (see label_multilang_candidates.py). Both effects inflate
+the numbers towards 1.0.
+
+For the honest measurement, which groups the split by file and separates the
+leak-free features, run scripts/evaluate_breakpoint_heuristic.py.
+"""
+
 from pathlib import Path
 
 import joblib

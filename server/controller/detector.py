@@ -13,9 +13,15 @@ LOG_VERBOSE    = False
 SNIPPET_PRINT_WIDTH = 1500
 
 def log(*args, **kwargs):
+    """Diagnostic output, silent unless LOG_VERBOSE is enabled."""
+    if not LOG_VERBOSE:
+        return
     print(*args, **kwargs)
 
 def log_json(title, obj):
+    """Diagnostic output, silent unless LOG_VERBOSE is enabled."""
+    if not LOG_VERBOSE:
+        return
     log(f"\n[{title}]")
     try:
         print(json.dumps(obj, indent=2, ensure_ascii=False)[:4000])

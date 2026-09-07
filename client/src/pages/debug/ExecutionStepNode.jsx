@@ -32,6 +32,8 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
     importAlias,
     importMember,
     targetFileLabel,
+    showFunc,
+    showFile,
   } = step
   const iconName = getStepIcon(type)
   const normalizedType = kind || canonicalStepType(type)
@@ -41,7 +43,7 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
   const displayFile = fileLabel || formatFileLabel(file)
   const locationTitle = file || fileLabel || displayFile || ''
   const funcLabel = formatStepFunctionLabel(func)
-  const showFuncLabel = funcLabel && funcLabel !== '<module>'
+  const showFuncLabel = funcLabel && funcLabel !== '<module>' && showFunc !== false
   const importLabel = importAlias || importModule
   const usageLabel = importAlias ? `${importAlias}${importMember ? `.${importMember}` : ''}` : (importMember || importModule)
   
@@ -106,8 +108,8 @@ const ExecutionStepNode = memo(({ step, index, isActive, isCurrent, onClick, tot
               </span>
             )}
             <span className="oc-exec-step-loc" title={locationTitle || undefined}>
-              {displayFile && <span className="opacity-70">{displayFile}:</span>}
-              <span className="font-semibold">L{line}</span>
+              {displayFile && showFile !== false && <span className="opacity-70">{displayFile}</span>}
+              {!isExit && <span className="font-semibold">{displayFile && showFile !== false ? ':' : ''}L{line}</span>}
             </span>
             {(isImport || isImportUsage) && targetFileLabel && (
               <span className="oc-exec-step-target">

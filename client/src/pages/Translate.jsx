@@ -530,6 +530,16 @@ export default function Translate() {
     })
   }
 
+  useEffect(() => {
+    setSelectedTargets((prev) => {
+      if (!prev.includes(effectiveLanguage)) return prev
+      const remaining = prev.filter((x) => x !== effectiveLanguage)
+      if (remaining.length) return remaining
+      const fallback = TARGET_LANGUAGES.find((lang) => lang.id !== effectiveLanguage)
+      return fallback ? [fallback.id] : remaining
+    })
+  }, [effectiveLanguage])
+
   const clearTranslations = () => {
     setTranslations([])
     setLastTranslatedAt(null)
@@ -1012,7 +1022,7 @@ export default function Translate() {
                       <div className="text-xs text-[var(--oc-muted)]">{selectedTargets.length} selected</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {TARGET_LANGUAGES.map((lang) => {
+                      {TARGET_LANGUAGES.filter((lang) => lang.id !== effectiveLanguage).map((lang) => {
                         const active = selectedTargets.includes(lang.id)
                         return (
                           <button
