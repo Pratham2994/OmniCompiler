@@ -523,26 +523,29 @@ export const buildExecutionTrace = (cfgGroups = [], filesContent = [], langHint 
     })
 
     if (node.children && node.children.length > 0) {
-      const isDecision = ['if', 'else', 'elif', 'switch', 'conditional'].includes(nodeType)
+      const ownsTrueBranch = ['if', 'elif'].includes(nodeType)
+      const ownsFalseBranch = nodeType === 'else'
 
-      node.children.forEach((child, idx) => {
-        if (isDecision && node.children.length > 1) {
-          const branchType = idx === 0 ? 'branch_true' : 'branch_false'
-          emit({
-            type: branchType,
-            kind: canonicalStepType(branchType),
-            line: child.start_line || child.line || 1,
-            file: child.file || resolvedFile,
-            fileLabel: labelForFile(child.file, resolvedFile),
-            code: idx === 0 ? '-> True branch' : '-> False branch',
-            depth: depth + 1,
-            func: currentFunc,
-            isCall: false,
-            isReturn: false,
-            isBranch: true,
-            isLoop: false,
-          })
-        }
+      if (ownsTrueBranch || ownsFalseBranch) {
+        const first = node.children[0]
+        const branchType = ownsTrueBranch ? 'branch_true' : 'branch_false'
+        emit({
+          type: branchType,
+          kind: canonicalStepType(branchType),
+          line: first.start_line || first.line || 1,
+          file: first.file || resolvedFile,
+          fileLabel: labelForFile(first.file, resolvedFile),
+          code: ownsTrueBranch ? '-> True branch' : '-> False branch',
+          depth: depth + 1,
+          func: currentFunc,
+          isCall: false,
+          isReturn: false,
+          isBranch: true,
+          isLoop: false,
+        })
+      }
+
+      node.children.forEach((child) => {
         result = [...result, ...processNode(child, depth + 1, currentFunc, resolvedFile || inheritedFile)]
       })
     }

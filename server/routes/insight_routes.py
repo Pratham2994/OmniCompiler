@@ -7,22 +7,30 @@ from pydantic import BaseModel, Field
 
 try:
     from ..controller.detector import detect as run_detect
-except ImportError:                    
+except ImportError:
     try:
         from server.controller.detector import detect as run_detect
     except ImportError:
-        from controller.detector import detect as run_detect                
+        from controller.detector import detect as run_detect
 
 try:
     from ..llm.gemini_insights import analyze_with_gemini, GeminiInsightError
     from ..llm.gemini_client import normalize_language_id
-except ImportError:                    
+except ImportError:
     try:
         from server.llm.gemini_insights import analyze_with_gemini, GeminiInsightError
         from server.llm.gemini_client import normalize_language_id
     except ImportError:
-        from llm.gemini_insights import analyze_with_gemini, GeminiInsightError                
-        from llm.gemini_client import normalize_language_id                
+        from llm.gemini_insights import analyze_with_gemini, GeminiInsightError
+        from llm.gemini_client import normalize_language_id
+
+try:
+    from .cfg_routes import build_cfg_summary
+except ImportError:
+    try:
+        from server.routes.cfg_routes import build_cfg_summary
+    except ImportError:
+        from routes.cfg_routes import build_cfg_summary
 
 router = APIRouter()
 
@@ -71,7 +79,7 @@ def _detect_language_from_files(files: List[InsightFile]) -> str:
     }
     try:
         result = run_detect(payload) or {}
-    except Exception as exc:                                                     
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Language detection failed: {exc}") from exc
     raw = str(result.get("lang") or "").lower()
     if raw == "plain":
@@ -95,11 +103,14 @@ def get_insights(payload: InsightRequest) -> InsightResponse:
     language = _resolve_language(payload.language, files)
 
     safe_files = [{"path": f.path.strip(), "content": f.content} for f in files]
+    cfg_summary = build_cfg_summary([(f["path"], f["content"]) for f in safe_files], language)
+
     try:
         result = analyze_with_gemini(
             files=safe_files,
             language=language,
             focus_path=payload.focus_path,
+            cfg_summary=cfg_summary,
         )
     except GeminiInsightError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

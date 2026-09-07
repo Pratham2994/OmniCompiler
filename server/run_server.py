@@ -5,7 +5,7 @@ import uvicorn
 
 
 def main():
-                                                                                      
+
     if os.name == "nt":
         try:
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -13,15 +13,15 @@ def main():
         except Exception as e:
             print(f"[run] failed to set policy: {e}", file=sys.stderr)
 
-                            
-                                                                                    
-                                                                                    
-                                                                                  
+
+
+
+
     uvicorn.run(
         "main:app",
         host="127.0.0.1",
         port=int(os.getenv("PORT", "8000")),
-        reload=False,                                                 
+        reload=False,
         log_level="info",
     )
 

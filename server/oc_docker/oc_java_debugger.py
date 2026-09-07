@@ -18,7 +18,7 @@ import threading
 import socket
 
 
-CMD_QUEUE: "queue.Queue[dict]" = None                
+CMD_QUEUE: "queue.Queue[dict]" = None
 try:
     import queue
     CMD_QUEUE = queue.Queue()
@@ -55,7 +55,7 @@ def parse_class_name(entry_path: str) -> str:
 
 
 def parse_break_hit(line: str):
-                                                                   
+
     m = re.search(r'line=(\d+)', line)
     line_no = int(m.group(1)) if m else None
     return line_no
@@ -73,20 +73,20 @@ async def main():
 
     threading.Thread(target=read_commands, daemon=True).start()
 
-                        
+
     master_fd, slave_fd = pty.openpty()
     slave_name = os.ttyname(slave_fd)
 
     exit_event = asyncio.Event()
 
-                                                                   
+
     def _pick_port() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
             return s.getsockname()[1]
 
     jdwp_port = str(_pick_port())
-                              
+
     jdb_cmd = [
         "jdb",
         "-sourcepath",
@@ -103,7 +103,7 @@ async def main():
         cwd="/work",
     )
 
-                                            
+
     try:
         rc = await asyncio.wait_for(jdb_proc.wait(), timeout=1.0)
     except asyncio.TimeoutError:
@@ -120,7 +120,7 @@ async def main():
         exit_event.set()
         return
 
-                                                        
+
     java_cmd = [
         "java",
         f"-agentlib:jdwp=transport=dt_socket,server=n,address=127.0.0.1:{jdwp_port},suspend=y",
@@ -162,7 +162,7 @@ async def main():
                 response_future = None
 
     async def apply_breakpoints(bps: list[dict]):
-                        
+
         for bp in list(bp_set):
             cls, ln = bp
             await jdb_cmd_send(f"clear {cls}:{ln}")
@@ -184,11 +184,11 @@ async def main():
             await jdb_cmd_send("where")
         except Exception:
             pass
-                                                                                  
+
         return stack, locals_map
 
     async def handle_break_hit(line_text: str):
-                                               
+
         try:
             await jdb_cmd_send("where")
         except Exception:
@@ -322,7 +322,7 @@ async def main():
                 exit_event.set()
                 return
 
-                                  
+
     init_bps_env = os.environ.get("OC_INIT_BPS", "")
     init_bps = []
     if init_bps_env:
@@ -338,7 +338,7 @@ async def main():
         asyncio.create_task(pump_commands()),
     ]
 
-                                    
+
     if init_bps:
         try:
             await apply_breakpoints(init_bps)

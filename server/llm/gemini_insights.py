@@ -7,17 +7,17 @@ from typing import Any, Dict, List, Optional
 from google import genai
 
 try:
-                                                                                  
+
     from .gemini_client import normalize_language_id
-except ImportError:                    
+except ImportError:
     try:
         from server.llm.gemini_client import normalize_language_id
     except ImportError:
-        from llm.gemini_client import normalize_language_id                
+        from llm.gemini_client import normalize_language_id
 
 __all__ = ["GeminiInsightError", "analyze_with_gemini"]
 
-DEFAULT_INSIGHT_MODEL = os.getenv("GOOGLE_GENAI_INSIGHT_MODEL", "gemini-2.5-pro")
+DEFAULT_INSIGHT_MODEL = os.getenv("GOOGLE_GENAI_INSIGHT_MODEL", "gemini-2.5-flash")
 INSIGHT_KEY_ENV_PRIMARY = "GOOGLE_GENAI_INSIGHT_API_KEY"
 INSIGHT_KEY_FALLBACKS = ("GOOGLE_GENAI_API_KEY", "GEMINI_API_KEY")
 
@@ -46,7 +46,7 @@ def _run_completion(prompt: str) -> str:
     client = genai.Client(api_key=_resolve_api_key())
     try:
         response = client.models.generate_content(model=DEFAULT_INSIGHT_MODEL, contents=prompt)
-    except Exception as exc:                                           
+    except Exception as exc:
         raise GeminiInsightError(f"Gemini insight request failed: {exc}") from exc
 
     text = getattr(response, "text", None)
@@ -88,7 +88,8 @@ def _parse_json_response(raw: str) -> Dict[str, Any]:
     raise GeminiInsightError("Gemini insight response was not valid JSON.")
 
 
-def _build_prompt(code_blob: str, language_hint: Optional[str], focus_path: Optional[str]) -> str:
+def _build_prompt(code_blob: str, language_hint: Optional[str], focus_path: Optional[str],
+                  cfg_summary: Optional[Dict[str, Any]] = None) -> str:
     schema = {
         "what_it_does": "1-2 sentences explaining the overall purpose.",
         "key_behaviors": ["short bullets describing main flows or outputs"],
@@ -105,6 +106,14 @@ def _build_prompt(code_blob: str, language_hint: Optional[str], focus_path: Opti
 
     focus_line = focus_path or "not specified"
     language_line = language_hint or "auto-detect"
+    structural = ""
+    if cfg_summary:
+        structural = (
+            "Structural context (control-flow graph extracted statically from the code below; "
+            "reference information, not code to analyze). Use it to ground claims about control "
+            "flow, loops, branching and complexity:\n"
+            f"{json.dumps(cfg_summary, indent=2)}\n\n"
+        )
     return (
         "You are Gemini 2.5 Pro acting as an expert software engineer and static analysis partner.\n"
         "Analyze the provided code and return a STRICT JSON object matching the schema below. "
@@ -115,6 +124,7 @@ def _build_prompt(code_blob: str, language_hint: Optional[str], focus_path: Opti
         f"{json.dumps(schema, indent=2)}\n\n"
         "Keep the response concise and evidence-based. Prefer short bullet strings; "
         "only include items you can justify from the code.\n\n"
+        f"{structural}"
         "Code to analyze:\n"
         f"{code_blob}"
     )
@@ -133,13 +143,14 @@ def analyze_with_gemini(
     files: List[Dict[str, str]],
     language: Optional[str] = None,
     focus_path: Optional[str] = None,
+    cfg_summary: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     if not files:
         raise GeminiInsightError("No files provided for analysis.")
 
     normalized_lang = normalize_language_id(language) if language else None
     code_blob = _format_files(files)
-    prompt = _build_prompt(code_blob, normalized_lang, focus_path)
+    prompt = _build_prompt(code_blob, normalized_lang, focus_path, cfg_summary=cfg_summary)
     raw = _run_completion(prompt)
     parsed = _parse_json_response(raw)
 

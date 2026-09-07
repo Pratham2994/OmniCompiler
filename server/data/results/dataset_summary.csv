@@ -1,0 +1,7 @@
+language,files,annotated_lines,positive,negative,distinct_reason_patterns,reason_patterns_with_conflicting_labels,label_reproduced_by_rule
+cpp,15,122,59,63,13,0,1.0
+go,15,108,66,42,10,0,1.0
+java,15,97,44,53,10,0,1.0
+javascript,15,74,51,23,12,0,1.0
+python,15,113,75,38,13,0,1.0
+POOLED,75,514,295,219,16,0,1.0

@@ -1,0 +1,16 @@
+problem,languages_present,mean_pairwise_jaccard,min_pairwise_jaccard,flagged_categories_union
+binarysearchtemplate2,5,0.78,0.6,5
+binarytreetraversal,5,0.5666666666666667,0.25,4
+clonegraph,5,0.7333333333333333,0.5,4
+coinchange,5,0.6416666666666667,0.25,4
+courseschedule,5,0.6100000000000001,0.25,5
+houserobber,5,0.4583333333333333,0.0,4
+longestpalindromicsubstring,5,0.7100000000000001,0.4,5
+longestsubstringwithoutrepeat,5,0.7,0.4,5
+lowestcommonancestor,5,0.8666666666666666,0.6666666666666666,3
+maxdepth,5,0.5833333333333333,0.3333333333333333,4
+numberofislands,5,0.9200000000000002,0.8,5
+searchrotatedarray,5,0.8400000000000001,0.6,5
+slidingwindowmaximum,5,0.9199999999999999,0.8,5
+threesum,5,0.8566666666666667,0.6666666666666666,6
+twosum,5,0.75,0.5,4

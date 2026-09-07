@@ -1,4 +1,4 @@
-                   
+
 import bdb
 import sys
 import json
@@ -23,10 +23,10 @@ def read_commands():
         try:
             cmd = json.loads(line)
         except Exception:
-                                    
+
             continue
-                                                                      
-                                                                  
+
+
         if cmd.get("type") == "stdin":
             INPUT_QUEUE.put(cmd.get("data", ""))
             continue
@@ -44,12 +44,12 @@ class OmniDebugger(bdb.Bdb):
         self.workdir = os.path.dirname(target_abspath)
         self.input_queue = INPUT_QUEUE
 
-                                             
+
 
     def user_line(self, frame):
         """Called when we stop on a new source line."""
         if not self._is_user_frame(frame):
-                                                          
+
             self.set_step()
             return
 
@@ -67,7 +67,7 @@ class OmniDebugger(bdb.Bdb):
         self._emit_event("exception", info)
         self._wait_for_command(frame)
 
-                                       
+
 
     def _is_user_frame(self, frame) -> bool:
         """
@@ -150,19 +150,19 @@ class OmniDebugger(bdb.Bdb):
             t = cmd.get("type")
 
             if t == "continue":
-                                                  
+
                 return self.set_continue()
 
             if t == "step_over":
-                                             
+
                 return self.set_next(frame)
 
             if t == "step_in":
-                           
+
                 return self.set_step()
 
             if t == "step_out":
-                                                 
+
                 return self.set_return(frame)
 
             if t == "set_breakpoints":
@@ -191,7 +191,7 @@ class OmniDebugger(bdb.Bdb):
             if t == "stop":
                 sys.exit(0)
 
-                                                                          
+
 
 
 def main():
@@ -201,12 +201,12 @@ def main():
 
     target_script = sys.argv[1]
 
-                               
+
     threading.Thread(target=read_commands, daemon=True).start()
 
     dbg = OmniDebugger(target_script)
 
-                                                                         
+
     import builtins
 
     _orig_input = builtins.input
@@ -227,7 +227,7 @@ def main():
     builtins.input = _oc_input
 
     try:
-                                                                      
+
         with open(target_script, "r", encoding="utf-8") as f:
             source = f.read()
 
@@ -242,7 +242,7 @@ def main():
             "__builtins__": builtins_mod,
         }
 
-                                                                                             
+
         init_bps = os.environ.get("OC_INIT_BPS", "")
         init_bps_path = os.environ.get("OC_INIT_BPS_PATH")
         bps_applied = False
@@ -270,13 +270,13 @@ def main():
             _apply_breakpoints(init_bps)
 
         if not bps_applied:
-                                                                                             
+
             dbg.set_step()
 
-                                                         
+
         dbg.run(code, globs, globs)
 
-                                                       
+
         sys.stdout.write(json.dumps({"event": "terminated", "body": {}}) + "\n")
         sys.stdout.flush()
 

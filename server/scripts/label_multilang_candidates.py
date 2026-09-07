@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-                                 
+
 ROOT = Path(__file__).resolve().parents[1]
 CAND_DIR = ROOT / "data" / "candidates"
 
@@ -18,15 +18,15 @@ def auto_label(df: pd.DataFrame) -> pd.DataFrame:
         reasons = str(row.get("reasons", "")).split(";")
         reasons = [r.strip() for r in reasons if r.strip()]
 
-                                                
+
         if any(r in reasons for r in ["for_loop", "while_loop", "if", "else_if", "elif"]):
             return 1
 
-                                                           
+
         if "indexing" in reasons and "comparison" in reasons:
             return 1
 
-                                         
+
         return 0
 
     df = df.copy()

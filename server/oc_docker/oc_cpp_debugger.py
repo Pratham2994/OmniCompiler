@@ -107,7 +107,7 @@ async def main():
         sys.stderr.write("Usage: oc_cpp_debugger.py <binary> [-- args...]\n")
         sys.exit(1)
 
-                                                                                          
+
     binary = sys.argv[1]
     try:
         sep_index = sys.argv.index("--")
@@ -117,14 +117,14 @@ async def main():
 
     loop = asyncio.get_running_loop()
 
-                                  
+
     threading.Thread(target=_read_commands, daemon=True).start()
 
-                          
+
     master_fd, slave_fd = pty.openpty()
     slave_name = os.ttyname(slave_fd)
 
-                                                              
+
     gdb_cmd = [
         "gdb",
         "--interpreter=mi2",
@@ -173,7 +173,7 @@ async def main():
                 pending = None
 
     async def apply_breakpoints(breakpoints: list[dict]):
-                        
+
         if bp_ids:
             ids = list(set(bp_ids.values()))
             bp_ids.clear()
@@ -338,7 +338,7 @@ async def main():
                 exit_event.set()
                 return
 
-                                                    
+
     init_bps = os.environ.get("OC_INIT_BPS", "")
     init_bps_path = os.environ.get("OC_INIT_BPS_PATH")
     init_list: list[dict] = []
@@ -354,7 +354,7 @@ async def main():
         except Exception:
             init_list = []
 
-                 
+
     tasks = [
         asyncio.create_task(pump_gdb_stdout()),
         asyncio.create_task(pump_gdb_stderr()),
@@ -362,7 +362,7 @@ async def main():
         asyncio.create_task(pump_commands()),
     ]
 
-                                        
+
     if init_list:
         try:
             await apply_breakpoints(init_list)

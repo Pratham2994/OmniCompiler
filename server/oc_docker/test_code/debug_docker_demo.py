@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 
-IMAGE = "omni-runner:python"                                     
+IMAGE = "omni-runner:python"
 CONTAINER_WORKDIR = "/work"
 
 
@@ -20,7 +20,7 @@ def start_pdb_container() -> subprocess.Popen:
     cmd = [
         "docker", "run",
         "--rm",
-        "-i",                                          
+        "-i",
         "-v", f"{str(workdir)}:{CONTAINER_WORKDIR}",
         "-w", CONTAINER_WORKDIR,
         IMAGE,
@@ -36,10 +36,10 @@ def start_pdb_container() -> subprocess.Popen:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1,                 
+        bufsize=1,
     )
 
-                                                                   
+
     def pump_stdout():
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -63,41 +63,41 @@ def main():
     proc = start_pdb_container()
 
     try:
-                                                                 
+
         time.sleep(1.0)
 
-                                                             
-                                     
+
+
         send_cmd(proc, "b sample_program.py:13")
 
-                                                            
+
         send_cmd(proc, "c")
 
-                                                                           
+
         time.sleep(1.0)
 
-                                            
+
         send_cmd(proc, "w")
 
-                                   
+
         send_cmd(proc, "p i")
         send_cmd(proc, "p x")
         send_cmd(proc, "p total")
         send_cmd(proc, "p locals()")
 
-                                                            
-        send_cmd(proc, "n")                 
+
+        send_cmd(proc, "n")
 
         time.sleep(0.5)
 
-                                
+
         send_cmd(proc, "c")
 
-                                                                    
+
         time.sleep(0.5)
         send_cmd(proc, "q")
 
-                                                  
+
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -105,7 +105,7 @@ def main():
             proc.terminate()
 
     finally:
-                        
+
         if proc.poll() is None:
             proc.terminate()
             try:

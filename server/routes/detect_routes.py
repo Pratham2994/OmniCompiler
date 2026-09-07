@@ -16,11 +16,11 @@ except ImportError:
 
 router = APIRouter()
 
-                                                                                      
-                           
-                                                                               
-                                                                            
-_DETECT_CACHE_TTL = int(os.getenv("DETECT_CACHE_TTL_SECONDS", "0"))                          
+
+
+
+
+_DETECT_CACHE_TTL = int(os.getenv("DETECT_CACHE_TTL_SECONDS", "0"))
 _DETECT_CACHE_MAX_ENTRIES = int(os.getenv("DETECT_CACHE_MAX_ENTRIES", "256"))
 
 _detect_cache: Dict[str, Dict[str, Any]] = {}
@@ -28,18 +28,18 @@ _detect_cache_ts: Dict[str, float] = {}
 _detect_cache_lock = threading.Lock()
 
 def _make_cache_key(payload: Dict[str, Any]) -> str:
-                                                            
+
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 def _prune_cache(now: float) -> None:
-                 
+
     if _DETECT_CACHE_TTL > 0:
         expired = [k for k, ts in _detect_cache_ts.items() if now - ts > _DETECT_CACHE_TTL]
         for k in expired:
             _detect_cache.pop(k, None)
             _detect_cache_ts.pop(k, None)
-                                  
+
     if len(_detect_cache) > _DETECT_CACHE_MAX_ENTRIES:
         by_age = sorted(_detect_cache_ts.items(), key=lambda kv: kv[1])
         overflow = len(_detect_cache) - _DETECT_CACHE_MAX_ENTRIES
@@ -75,10 +75,10 @@ class DetectResponse(BaseModel):
 @router.post("/detect", response_model=DetectResponse)
 def detect_endpoint(req: DetectRequest):
     try:
-                                                             
+
         payload: Dict[str, Any] = req.model_dump() if hasattr(req, "model_dump") else req.dict()
 
-                                                                                                  
+
         key = _make_cache_key(payload)
         now = time.time()
         with _detect_cache_lock:
@@ -86,21 +86,21 @@ def detect_endpoint(req: DetectRequest):
                 if _DETECT_CACHE_TTL == 0 or (now - _detect_cache_ts.get(key, 0.0) <= _DETECT_CACHE_TTL):
                     return _detect_cache[key]
 
-                              
+
         result = run_detect(payload)
 
-                                              
+
         if hasattr(result, "model_dump"):
-            result_dict = result.model_dump()                              
+            result_dict = result.model_dump()
         elif isinstance(result, dict):
             result_dict = result
         else:
             try:
-                result_dict = dict(result)                          
+                result_dict = dict(result)
             except Exception:
                 result_dict = {"status": "error", "reason": "unserializable_result"}
 
-                        
+
         with _detect_cache_lock:
             _prune_cache(now)
             _detect_cache[key] = result_dict

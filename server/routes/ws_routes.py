@@ -8,31 +8,31 @@ from .run_routes import SESSIONS
 
 router = APIRouter()
 
-                                                                  
+
 SENTINEL = "<<<OC_AWAIT>>>"
 
 @router.websocket("/ws/echo")
 async def ws_echo(ws: WebSocket):
-                       
+
     await ws.accept()
-                  
+
     await ws.send_json({"type": "welcome", "msg": "WS connected. Send {'type':'in','data':'hello'}"})
     try:
         while True:
-            raw = await ws.receive_json()                 
+            raw = await ws.receive_json()
             if raw.get("type") == "in":
-                                    
+
                 await ws.send_json({"type": "out", "data": f"echo: {raw.get('data','')}"})
             else:
                 await ws.send_json({"type": "err", "data": f"unknown message: {raw}"})
     except WebSocketDisconnect:
-                                      
+
         pass
 
 
 
 
-                                                    
+
 USE_DOCKER = os.getenv("OC_USE_DOCKER", "1") not in ("0", "false", "False", "no", "No")
 
 
@@ -46,7 +46,7 @@ DOCKER_IMAGES = {
 }
 
 def _should_use_docker():
-                                                            
+
     return USE_DOCKER and shutil.which("docker") is not None
 
 def _write_files(files, workdir):
@@ -78,13 +78,13 @@ async def _start_process(lang, entry, args, workdir):
         if not image:
             raise ValueError(f"Unsupported lang for docker: {lang}")
 
-                                                                                            
+
         mount = f"{workdir}:/work:{'ro' if lang == 'python' else 'rw'}"
 
         if lang == "python":
-                                                                                                 
-                                                                                     
-                                                                                 
+
+
+
                 bootstrap = textwrap.dedent(f"""
                     import sys, runpy, builtins, os
 
@@ -116,7 +116,7 @@ async def _start_process(lang, entry, args, workdir):
                 with open(bootstrap_path, "w", encoding="utf-8") as f:
                     f.write(bootstrap)
 
-                                                                                    
+
                 mount = f"{os.path.abspath(workdir)}:/work:ro"
                 cmd = ["docker", "run", "--rm", "-i",
                        "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
@@ -129,7 +129,7 @@ async def _start_process(lang, entry, args, workdir):
                 except Exception:
                     cmd_desc = f"docker run ... {DOCKER_IMAGES['python']} python -u _oc_bootstrap.py"
         elif lang == "cpp":
-                                                                                                                    
+
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
                 f"g++ -O2 {shlex.quote(entry)} -o app && "
@@ -151,7 +151,7 @@ async def _start_process(lang, entry, args, workdir):
             except Exception:
                 cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
         elif lang == "javascript":
-                                                                             
+
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
                 f"( if command -v script >/dev/null 2>&1; then "
@@ -172,8 +172,8 @@ async def _start_process(lang, entry, args, workdir):
             except Exception:
                 cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
         elif lang == "go":
-                                                                                                                            
-                                                                                                  
+
+
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
                 f"( if go build -o app {shlex.quote(entry)} >/dev/null 2>&1; then "
@@ -202,7 +202,7 @@ async def _start_process(lang, entry, args, workdir):
             except Exception:
                 cmd_desc = f"docker run ... {image} /bin/sh -lc {shell_line}"
         elif lang == "java":
-                                                                                        
+
             main_class = os.path.splitext(os.path.basename(entry))[0]
             args_q = " ".join(shlex.quote(a) for a in args)
             shell_line = (
@@ -228,12 +228,12 @@ async def _start_process(lang, entry, args, workdir):
             raise ValueError(f"Unsupported lang for docker: {lang}")
 
     else:
-                                                                      
+
         raise ValueError("Docker is required for execution but was not detected on PATH (OC_USE_DOCKER=1).")
 
-                                                                                                                
+
     try:
-                                                                  
+
         try:
             pol = type(asyncio.get_event_loop_policy()).__name__
             loop = asyncio.get_running_loop()
@@ -251,7 +251,7 @@ async def _start_process(lang, entry, args, workdir):
         )
         return proc, cmd_desc, using, "async"
     except NotImplementedError:
-                                                                                                 
+
         raise RuntimeError(
             "Async subprocess unsupported with current event loop. "
             "On Windows, start the server with: python run_server.py "
@@ -685,7 +685,7 @@ async def _handle_python_debug(ws: WebSocket, sess: dict):
     out_task = asyncio.create_task(pump_stdout())
     err_task = asyncio.create_task(pump_stderr())
 
-                                          
+
     try:
         if breakpoints:
             await sync_breakpoints()
@@ -1391,14 +1391,14 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
             pass
 
     async def handle_paused(file: str | None, line: int | None):
-                                             
+
         stack = []
         locals_map: dict[str, str] = {}
 
         try:
             stack_lines = await send_query("stack")
             for ln in stack_lines:
-                                                                    
+
                 m = re.match(r'\s*\d+\s+\S+\s+in\s+([^\s]+)\s+([^\s]+):(\d+)', ln)
                 if not m:
                     continue
@@ -1451,7 +1451,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
 
                 stripped = text.strip()
 
-                                                                              
+
                 if command_future is not None:
                     if stripped.endswith("(dlv)"):
                         if not command_future.done():
@@ -1462,11 +1462,11 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     command_buffer.append(text)
                     continue
 
-                               
+
                 if stripped.endswith("(dlv)"):
                     continue
 
-                                                                                              
+
                 m = re.match(r'>\s+[^\s]+\s+\(([^:]+):(\d+)\)', text)
                 if m:
                     file = m.group(1)
@@ -1603,7 +1603,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         for t in (out_task, err_task):
             t.cancel()
         try:
-            from starlette.websockets import WebSocketState                
+            from starlette.websockets import WebSocketState
             state = getattr(ws, "application_state", None)
             if state is None or state != WebSocketState.DISCONNECTED:
                 try:
@@ -1654,7 +1654,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         try:
             return await asyncio.wait_for(fut, timeout=timeout)
         except Exception:
-                                                                  
+
             if not fut.done():
                 fut.cancel()
             return list(command_buffer)
@@ -1680,7 +1680,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         await send_raw(f"clear {cls}:{line}")
 
     async def sync_breakpoints():
-                                                 
+
         for bp in breakpoints:
             try:
                 await add_bp(bp)
@@ -1701,7 +1701,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         stack = []
         locals_map: dict[str, str] = {}
 
-                           
+
         where_lines = await send_query("where")
         for ln in where_lines:
             m = re.search(r'\[\d+\]\s+([^\s]+)\s+\(([^:]+):(\d+)\)', ln)
@@ -1718,7 +1718,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
             file = file or stack[0].get("file")
             line = line or stack[0].get("line")
 
-                     
+
         loc_lines = await send_query("locals")
         for ln in loc_lines:
             if "=" not in ln:
@@ -1751,9 +1751,9 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                 if not text:
                     continue
 
-                                                                             
+
                 if command_future is not None:
-                                                                                              
+
                     if text.strip().endswith(">"):
                         if not command_future.done():
                             command_future.set_result(command_buffer)
@@ -1763,13 +1763,13 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     command_buffer.append(text)
                     continue
 
-                                                                                          
+
                 if text.startswith("Local variables:") or text.startswith("Method arguments:"):
                     continue
                 if re.match(r'^\s*(args|h|x)\s*=', text):
                     continue
 
-                                  
+
                 if "Breakpoint hit:" in text or "Step completed:" in text:
                     m = re.search(r'\(([^:]+\.java):(\d+)\)', text)
                     file = m.group(1) if m else None
@@ -1780,7 +1780,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     await handle_paused(file, line, "breakpoint")
                     continue
 
-                                                                               
+
                 m_frame = re.match(r'.*\[\d+\]\s+([^\s]+)\s+\(([^:]+):(\d+)\)', text)
                 if m_frame:
                     func = m_frame.group(1)
@@ -1792,7 +1792,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     await handle_paused(file, line_no, "step")
                     continue
 
-                                                                                                              
+
                 m_src = re.match(r'\s*(?:\w+\[\d+\]\s+)?(\d+)\s+.+', text)
                 if m_src and not paused.is_set():
                     try:
@@ -1816,11 +1816,11 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     paused.set()
                     continue
 
-                                                           
+
                 if text.strip().endswith(">"):
                     continue
 
-                                   
+
                 try:
                     await ws.send_json({"type": "out", "data": text + "\n"})
                 except Exception:
@@ -1846,7 +1846,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
     out_task = asyncio.create_task(pump_stdout())
     err_task = asyncio.create_task(pump_stderr())
 
-                                
+
     try:
         if breakpoints:
             await sync_breakpoints()
@@ -1951,7 +1951,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         for t in (out_task, err_task):
             t.cancel()
         try:
-            from starlette.websockets import WebSocketState                
+            from starlette.websockets import WebSocketState
             state = getattr(ws, "application_state", None)
             if state is None or state != WebSocketState.DISCONNECTED:
                 try:
@@ -1963,7 +1963,7 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                 except Exception:
                     pass
         except Exception:
-                                                             
+
             try:
                 await ws.close()
             except Exception:
@@ -2215,13 +2215,13 @@ async def ws_run(ws: WebSocket, sid: str):
 
     lang, entry, args, files = sess["lang"], sess["entry"], sess["args"], sess["files"]
 
-                                                         
+
     try:
         await ws.send_json({"type": "status", "phase": "starting", "lang": lang, "entry": entry})
     except Exception:
         pass
 
-                                                  
+
     workdir = tempfile.mkdtemp(prefix=f"oc-{lang}-")
     _write_files(files, workdir)
 
@@ -2246,9 +2246,9 @@ async def ws_run(ws: WebSocket, sid: str):
         shutil.rmtree(workdir, ignore_errors=True)
         return await ws.close()
 
-                                                                 
+
     try:
-                                                                    
+
         if cmd_desc:
             try:
                 print(f"[status:exec] using={using} mode={mode} cmd={cmd_desc}")
@@ -2260,8 +2260,8 @@ async def ws_run(ws: WebSocket, sid: str):
 
     await ws.send_json({"type":"status","phase":"running"})
 
-                                                                                                    
-                                                                                                   
+
+
     async def pump_async(reader, kind):
         carry = ""
         try:
@@ -2275,7 +2275,7 @@ async def ws_run(ws: WebSocket, sid: str):
                 text = carry + chunk.decode(errors="ignore")
                 carry = ""
 
-                                                                        
+
                 if kind != "out":
                     if text:
                         await ws.send_json({"type": kind, "data": text})
@@ -2286,8 +2286,8 @@ async def ws_run(ws: WebSocket, sid: str):
                 while True:
                     j = text.find(s, i)
                     if j == -1:
-                                                                                                         
-                                                                    
+
+
                         tail_len = 0
                         max_tail = min(len(s) - 1, len(text) - i)
                         for k in range(max_tail, 0, -1):
@@ -2297,20 +2297,20 @@ async def ws_run(ws: WebSocket, sid: str):
                         emit_part = text[i: len(text) - tail_len] if tail_len > 0 else text[i:]
                         if emit_part:
                             await ws.send_json({"type": kind, "data": emit_part})
-                                                                                                           
+
                             if kind == "out" and not emit_part.endswith("\n"):
                                 await ws.send_json({"type": "awaiting_input", "value": True})
                         carry = text[-tail_len:] if tail_len > 0 else ""
                         break
 
-                                                            
+
                     if j > i:
                         part = text[i:j]
                         await ws.send_json({"type": kind, "data": part})
-                                                                                                       
+
                         if part and not part.endswith("\n"):
                             await ws.send_json({"type": "awaiting_input", "value": True})
-                                                                                      
+
                     await ws.send_json({"type": "awaiting_input", "value": True})
                     i = j + len(s)
         except Exception:
@@ -2328,7 +2328,7 @@ async def ws_run(ws: WebSocket, sid: str):
     t_wd = asyncio.create_task(watchdog())
 
     try:
-                                                                                                         
+
         proc_wait = asyncio.create_task(proc.wait())
 
         while True:
@@ -2336,12 +2336,12 @@ async def ws_run(ws: WebSocket, sid: str):
             done, pending = await asyncio.wait({recv_task, proc_wait}, return_when=asyncio.FIRST_COMPLETED)
 
             if proc_wait in done:
-                                                         
+
                 for t in pending:
                     t.cancel()
                 break
 
-                                  
+
             try:
                 raw = await recv_task
             except WebSocketDisconnect:
@@ -2366,16 +2366,16 @@ async def ws_run(ws: WebSocket, sid: str):
                     if proc.stdin and not proc.stdin.is_closing():
                         proc.stdin.write(data.encode())
                         await proc.stdin.drain()
-                                                                                                  
+
                     try:
                         await ws.send_json({"type": "awaiting_input", "value": False})
                     except Exception:
                         pass
                 except Exception:
-                                                      
+
                     pass
             elif msg.get("type") in ("close", "stop"):
-                                                                                  
+
                 try:
                     await ws.send_json({"type": "status", "phase": "stopping"})
                 except Exception:
