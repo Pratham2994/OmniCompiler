@@ -500,6 +500,19 @@ class _CfgGraphBuilder:
             if source.start_line >= header.start_line and source.end_line <= header.end_line:
                 edge.back = True
 
+    def nesting_depth(self, node: CfgNode) -> int:
+        """Deepest chain of nested control constructs inside a declaration."""
+        def walk(current: CfgNode, depth: int) -> int:
+            best = depth
+            for child_id in current.children:
+                child = self.by_id.get(child_id)
+                if child is None:
+                    continue
+                step = 1 if child.type in DECISION_TYPES else 0
+                best = max(best, walk(child, depth + step))
+            return best
+        return walk(node, 0)
+
     def function_metrics(self) -> List[Dict[str, Any]]:
         """Cyclomatic complexity per function over its own reachable subgraph.
 
@@ -542,6 +555,14 @@ class _CfgGraphBuilder:
             )
             complexity = edge_count - len(visited) + 2
             short_circuits = self.short_circuit_count(node)
+            loops = sum(1 for nid in visited
+                        if nid in self.by_id and self.by_id[nid].type in LOOP_TYPES)
+            branches = sum(1 for nid in visited
+                           if nid in self.by_id and self.by_id[nid].type in ("if", "elif", "else"))
+            returns = sum(1 for nid in visited
+                          if nid in self.by_id and self.by_id[nid].type == "return")
+            back = sum(1 for e in self.edges
+                       if e.back and e.source in visited and e.target in visited)
             entry = {
                 "function": node.label,
                 "file": node.file,
@@ -552,6 +573,11 @@ class _CfgGraphBuilder:
                 "cyclomatic": complexity,
                 "decision_points": decisions,
                 "matches_decision_rule": complexity == decisions + 1,
+                "loops": loops,
+                "branches": branches,
+                "returns": returns,
+                "loop_back_edges": back,
+                "max_nesting_depth": self.nesting_depth(node),
             }
             if short_circuits is not None:
                 entry["short_circuit_operators"] = short_circuits
@@ -670,6 +696,10 @@ def summarize_cfg_nodes(
             "lines": [fn["start_line"], fn["end_line"]],
             "cyclomatic_complexity": fn["cyclomatic"],
             "decision_points": fn["decision_points"],
+            "loops": fn.get("loops"),
+            "branches": fn.get("branches"),
+            "returns": fn.get("returns"),
+            "max_nesting_depth": fn.get("max_nesting_depth"),
         })
 
     for file_name, bucket in per_file.items():
@@ -684,6 +714,13 @@ def summarize_cfg_nodes(
             "decision_nodes": metrics.get("decision_nodes", 0),
         },
         "files": sorted(per_file.values(), key=lambda b: b["file"]),
+        "preserve": [
+            "one function in the translation for each function listed here",
+            "the same number of loops in each function",
+            "the same number of branches in each function",
+            "the same cyclomatic complexity in each function",
+            "the same nesting depth, rather than flattening or further nesting",
+        ],
         "notes": (
             "cyclomatic_complexity is M = E - V + 2P computed on the function subgraph. "
             "break, continue, goto, switch fallthrough and exceptional edges are not modelled."

@@ -1,0 +1,9 @@
+target_language,condition,n,executable_rate,output_match_rate,mean_cyclomatic_delta
+cpp,anchored,12,0.8333333333333334,0.8333333333333334,1.5833333333333333
+cpp,plain,12,0.9166666666666666,0.9166666666666666,1.6666666666666667
+go,anchored,12,1.0,1.0,0.5
+go,plain,12,1.0,1.0,0.5833333333333334
+java,anchored,12,1.0,1.0,1.0833333333333333
+java,plain,12,1.0,1.0,1.0
+javascript,anchored,12,1.0,1.0,0.25
+javascript,plain,12,1.0,1.0,0.25

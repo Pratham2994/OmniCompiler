@@ -232,8 +232,12 @@ def normalise_output(text: str) -> str:
     return "\n".join(line.rstrip() for line in text.strip().splitlines())
 
 
+RUN_TAG = "default"
+
+
 def cache_path(condition: str, lang: str, stem: str) -> Path:
-    return TRANSLATION_DIR / condition / lang / ("%s.%s" % (stem, TARGETS[lang]["ext"]))
+    root = TRANSLATION_DIR if RUN_TAG == "default" else TRANSLATION_DIR / RUN_TAG
+    return root / condition / lang / ("%s.%s" % (stem, TARGETS[lang]["ext"]))
 
 
 _key_lock = threading.Lock()
@@ -357,7 +361,20 @@ def main() -> None:
                         help="only use the first N benchmark programs")
     parser.add_argument("--skip-execution", action="store_true",
                         help="skip the Docker execution stage")
+    parser.add_argument("--model", default=None,
+                        help="override the translation model for this run")
+    parser.add_argument("--tag", default="default",
+                        help="namespace for cached translations and result files")
     args = parser.parse_args()
+
+    global RUN_TAG
+    RUN_TAG = args.tag
+    if args.model:
+        os.environ["GOOGLE_GENAI_MODEL"] = args.model
+        from server.llm import gemini_client as _client
+        _client.DEFAULT_MODEL = args.model
+        print("translation model: %s" % args.model)
+    print("run tag: %s" % RUN_TAG)
 
     programs = sorted(BENCH_DIR.glob("*.py"))
     if args.limit:
@@ -462,7 +479,7 @@ def main() -> None:
     df = df[df["program"].isin(complete[complete].index)]
     print("\nprograms with a complete anchored/plain matrix: %d"
           % df["program"].nunique())
-    df.to_csv(RESULT_DIR / "anchoring_ablation_raw.csv", index=False)
+    df.to_csv(RESULT_DIR / ("anchoring_ablation_raw.csv" if RUN_TAG == "default" else "anchoring_ablation_raw_" + RUN_TAG + ".csv"), index=False)
 
     summary = df.groupby("condition").agg(
         n=("program", "count"),
@@ -473,7 +490,7 @@ def main() -> None:
         mean_branch_delta=("branch_delta", "mean"),
         mean_function_delta=("function_delta", "mean"),
     ).reset_index()
-    summary.to_csv(RESULT_DIR / "anchoring_ablation.csv", index=False)
+    summary.to_csv(RESULT_DIR / ("anchoring_ablation.csv" if RUN_TAG == "default" else "anchoring_ablation_" + RUN_TAG + ".csv"), index=False)
 
     by_lang = df.groupby(["target_language", "condition"]).agg(
         n=("program", "count"),
@@ -481,7 +498,7 @@ def main() -> None:
         output_match_rate=("output_match", "mean"),
         mean_cyclomatic_delta=("cyclomatic_delta", "mean"),
     ).reset_index()
-    by_lang.to_csv(RESULT_DIR / "anchoring_ablation_by_language.csv", index=False)
+    by_lang.to_csv(RESULT_DIR / ("anchoring_ablation_by_language.csv" if RUN_TAG == "default" else "anchoring_ablation_by_language_" + RUN_TAG + ".csv"), index=False)
 
     print("\n=== ANCHORED vs PLAIN ===")
     print(summary.to_string(index=False, float_format=lambda v: "%.3f" % v))

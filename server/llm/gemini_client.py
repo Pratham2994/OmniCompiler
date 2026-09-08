@@ -163,10 +163,13 @@ Do not introduce new network access, file I/O, or external side effects that are
     if cfg_summary:
         prompt += (
             "\n\nStructural context\n"
-            "The following control-flow graph was extracted statically from the source code. "
-            "It is reference information describing the program structure, not code to translate. "
-            "Use it to preserve branch and loop semantics, control-flow structure, and the relative "
-            "complexity of each function in the translation.\n"
+            "A control-flow graph extracted statically from the source is given below. It is "
+            "reference information about the program structure, not code to translate. The "
+            "preserve list states properties the translation is expected to hold: for each "
+            "function, match the loop count, the branch count, the cyclomatic complexity and "
+            "the nesting depth. Verify the translation against those counts before returning "
+            "it, and prefer a structurally faithful translation over a more idiomatic one "
+            "where the two conflict.\n"
             + json.dumps(cfg_summary, indent=2)
         )
     prompt += f"\n\nNow output ONLY valid {target_name} code."
