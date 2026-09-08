@@ -1,0 +1,6 @@
+language,idle_mb,peak_mb,samples,runtime_resident
+python,5.926,6.188,6,True
+cpp,2.711,2.711,6,True
+javascript,7.688,7.688,6,True
+go,35.07,35.99,6,True
+java,21.28,21.28,6,True
