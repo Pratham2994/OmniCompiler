@@ -31,6 +31,38 @@ class RunResp(BaseModel):
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def name_container(cmd: list) -> tuple:
+    """Give a `docker run` invocation a name, returning (cmd, name).
+
+    The process started for a `docker run` is the client, not the container.
+    Signalling that process leaves the container it asked for running, and
+    without a name there is no handle by which to stop it afterwards, so a
+    session that ends abnormally leaks its container until the daemon is
+    restarted. Naming the container makes the cleanup below possible.
+    """
+    if len(cmd) < 2 or cmd[0] != "docker" or cmd[1] != "run":
+        return cmd, None
+    name = "oc-%s" % uuid.uuid4().hex[:16]
+    return cmd[:2] + ["--name", name] + cmd[2:], name
+
+
+async def remove_container(name) -> None:
+    """Force-remove a named container, ignoring one that is already gone."""
+    if not name:
+        return
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "rm", "-f", name,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=20)
+    except Exception:
+        pass
+
+
 ALLOWED_LANGS = {"python", "javascript", "java", "cpp", "go"}
 ALLOWED_MODES = {"run", "debug"}
 
@@ -477,6 +509,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
             *list(args or []),
         ])
 
+        shim_cmd, container = name_container(shim_cmd)
         proc = await asyncio.create_subprocess_exec(
             *shim_cmd,
             cwd=workdir,
@@ -494,6 +527,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
             out, err = await proc.communicate()
             msg = (err or out or f"java debugger exited with code {rc}").decode(errors="ignore")
             raise HTTPException(status_code=500, detail=msg)
+        setattr(proc, "_oc_container", container)
         return workdir, proc, entry_class
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -547,6 +581,7 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
         ]
 
 
+        dlv_cmd, container = name_container(dlv_cmd)
         proc = await asyncio.create_subprocess_exec(
             *dlv_cmd,
             cwd=workdir,
@@ -562,6 +597,7 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
             out, err = await proc.communicate()
             msg = (err or out or f"dlv exited with code {rc}").decode(errors="ignore")
             raise HTTPException(status_code=500, detail=msg)
+        setattr(proc, "_oc_container", container)
         return workdir, proc, binary_path
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)

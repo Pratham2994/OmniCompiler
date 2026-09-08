@@ -4,7 +4,7 @@ import asyncio, json, tempfile, os, textwrap, shutil, shlex, subprocess, re
 SENTINEL = "<<<OC_AWAIT>>>"
 
 
-from .run_routes import SESSIONS
+from .run_routes import SESSIONS, name_container, remove_container
 
 router = APIRouter()
 
@@ -242,6 +242,7 @@ async def _start_process(lang, entry, args, workdir):
         except Exception:
             pass
 
+        cmd, container = name_container(cmd)
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workdir,
@@ -249,6 +250,7 @@ async def _start_process(lang, entry, args, workdir):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        setattr(proc, "_oc_container", container)
         return proc, cmd_desc, using, "async"
     except NotImplementedError:
 
@@ -538,6 +540,9 @@ async def _handle_cpp_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -777,6 +782,9 @@ async def _handle_python_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -1028,6 +1036,9 @@ async def _handle_js_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -1279,6 +1290,9 @@ async def _handle_java_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -1295,6 +1309,74 @@ async def _handle_java_debug(ws: WebSocket, sess: dict):
         sess["state"] = "closed"
         if workdir:
             shutil.rmtree(workdir, ignore_errors=True)
+
+DLV_PROMPT = "(dlv) "
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+# dlv announces a pause as, e.g.
+#   > [Breakpoint 1] main.main() ./main.go:13 (hits goroutine(1):1 total:1)
+#   > main.helper() ./main.go:6 (PC: 0x49b2a0)
+_DLV_STOP_RE = re.compile(
+    r"^>\s*(?:\[[^\]]*\]\s*)?(?P<func>[^\s(]+)\([^)]*\)\s+"
+    r"(?P<file>[^\s:]+):(?P<line>\d+)"
+)
+
+# `stack` reports each frame over two lines:
+#   0  0x000000000049b350 in main.main
+#      at ./main.go:13
+_DLV_FRAME_RE = re.compile(r"^\s*(?P<idx>\d+)\s+0x[0-9a-fA-F]+\s+in\s+(?P<func>\S+)")
+_DLV_FRAME_AT_RE = re.compile(r"^\s*at\s+(?P<file>\S+):(?P<line>\d+)")
+
+# Source context echoed after a pause, e.g. "=>  13:	total += helper(i)"
+_DLV_SRC_RE = re.compile(r"^\s*=?>?\s*\d+:\s")
+
+_DLV_EXIT_RE = re.compile(r"Process\s+\d+\s+has exited with status")
+
+_DLV_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+# dlv's own acknowledgements, which are not program output.
+_DLV_NOISE_PREFIXES = ("Type 'help'", "Breakpoint ", "Command failed:")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
+
+def _parse_dlv_stack(block_lines: list) -> list:
+    """Pair dlv's two-line frame records into the shared frame representation."""
+    frames = []
+    pending = None
+    for raw in block_lines:
+        m = _DLV_FRAME_RE.match(raw)
+        if m:
+            pending = {"function": m.group("func"), "func": m.group("func")}
+            continue
+        m_at = _DLV_FRAME_AT_RE.match(raw)
+        if m_at and pending is not None:
+            pending["file"] = m_at.group("file")
+            try:
+                pending["line"] = int(m_at.group("line"))
+            except Exception:
+                pending["line"] = None
+            frames.append(pending)
+            pending = None
+    return frames
+
+
+def _parse_dlv_locals(block_lines: list) -> dict:
+    values = {}
+    for raw in block_lines:
+        stripped = raw.strip()
+        if not stripped or "=" not in stripped:
+            continue
+        name, val = stripped.split("=", 1)
+        name = name.strip()
+        if not _DLV_IDENT_RE.match(name):
+            continue
+        values[name] = val.strip()
+    return values
+
 
 async def _handle_go_debug(ws: WebSocket, sess: dict):
     lang = sess.get("lang")
@@ -1345,25 +1427,29 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
             proc.stdin.write((cmd + "\n").encode())
             await proc.stdin.drain()
 
-    async def send_query(cmd: str, timeout: float = 3.0) -> list[str]:
-        nonlocal command_future, command_buffer
+    async def send_query(cmd: str, timeout: float = 5.0) -> list:
+        """Run a dlv command and return the lines it printed before the prompt.
+
+        dlv ends every response with "(dlv) " and no newline, so the reader
+        below splits the console on that token rather than on newlines and a
+        response arrives as one block.
+        """
+        nonlocal command_future
         if command_future is not None:
             raise RuntimeError("command already in flight")
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
         command_future = fut
-        command_buffer = []
         await send_cmd(cmd)
         try:
             return await asyncio.wait_for(fut, timeout=timeout)
         except Exception:
             if not fut.done():
                 fut.cancel()
-            return list(command_buffer)
+            return []
         finally:
             if command_future is fut:
                 command_future = None
-                command_buffer = []
 
     async def add_bp(bp):
         file = bp.get("file")
@@ -1390,45 +1476,28 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
         except Exception:
             pass
 
-    async def handle_paused(file: str | None, line: int | None):
-
+    async def handle_paused(file=None, line=None, func=None):
         stack = []
-        locals_map: dict[str, str] = {}
+        locals_map = {}
 
         try:
-            stack_lines = await send_query("stack")
-            for ln in stack_lines:
-
-                m = re.match(r'\s*\d+\s+\S+\s+in\s+([^\s]+)\s+([^\s]+):(\d+)', ln)
-                if not m:
-                    continue
-                func = m.group(1)
-                f = m.group(2)
-                try:
-                    lno = int(m.group(3))
-                except Exception:
-                    lno = None
-                stack.append({"file": f, "line": lno, "function": func})
-            if stack and (file is None or line is None):
-                file = file or stack[0].get("file")
-                line = line or stack[0].get("line")
+            stack.extend(_parse_dlv_stack(await send_query("stack")))
+        except Exception:
+            pass
+        try:
+            locals_map.update(_parse_dlv_locals(await send_query("locals")))
         except Exception:
             pass
 
-        try:
-            loc_lines = await send_query("locals")
-            for ln in loc_lines:
-                if "=" not in ln:
-                    continue
-                name, val = ln.split("=", 1)
-                locals_map[name.strip()] = val.strip()
-        except Exception:
-            pass
+        if stack:
+            file = file or stack[0].get("file")
+            line = line or stack[0].get("line")
+            func = func or stack[0].get("function")
 
         payload = {
             "file": file,
             "line": line,
-            "function": stack[0].get("function") if stack else None,
+            "function": func,
             "stack": stack,
             "locals": locals_map,
         }
@@ -1438,49 +1507,74 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
             pass
         paused.set()
 
+    async def handle_block(block: str):
+        """Interpret one prompt-delimited chunk of dlv console output."""
+        nonlocal command_future
+        block_lines = [ln.rstrip("\r") for ln in block.split("\n")]
+
+        if command_future is not None:
+            if not command_future.done():
+                command_future.set_result(block_lines)
+            command_future = None
+            return
+
+        stop_match = None
+        for ln in block_lines:
+            m = _DLV_STOP_RE.match(ln.strip())
+            if m:
+                stop_match = m
+                break
+
+        if stop_match is not None:
+            try:
+                line_no = int(stop_match.group("line"))
+            except Exception:
+                line_no = None
+            # Collecting the state issues further dlv commands whose replies
+            # this same reader must deliver, so it cannot be awaited here.
+            asyncio.create_task(handle_paused(stop_match.group("file"), line_no,
+                                              stop_match.group("func")))
+            return
+
+        if any(_DLV_EXIT_RE.search(ln) for ln in block_lines):
+            try:
+                await ws.send_json({"type": "status", "data": "exited"})
+            except Exception:
+                pass
+            exit_event.set()
+            return
+
+        # What remains is the debugged program's own output. The source context
+        # dlv echoes after a pause, and its own acknowledgements, are dropped so
+        # they are not shown to the user as program output.
+        kept = [ln for ln in block_lines
+                if ln.strip()
+                and not _DLV_SRC_RE.match(ln)
+                and not ln.strip().startswith(_DLV_NOISE_PREFIXES)]
+        if kept:
+            try:
+                await ws.send_json({"type": "out", "data": "\n".join(kept) + "\n"})
+            except Exception:
+                pass
+
     async def pump_stdout():
+        """Split dlv's console on its prompt rather than on newlines.
+
+        The prompt carries no trailing newline, so readline() blocks on it and
+        no response is ever completed.
+        """
+        buf = ""
         try:
             while True:
-                raw = await proc.stdout.readline()
-                if not raw:
+                chunk = await proc.stdout.read(4096)
+                if not chunk:
                     exit_event.set()
                     break
-                text = raw.decode(errors="ignore").rstrip("\n")
-                if not text:
-                    continue
-
-                stripped = text.strip()
-
-
-                if command_future is not None:
-                    if stripped.endswith("(dlv)"):
-                        if not command_future.done():
-                            command_future.set_result(command_buffer)
-                        command_future = None
-                        command_buffer = []
-                        continue
-                    command_buffer.append(text)
-                    continue
-
-
-                if stripped.endswith("(dlv)"):
-                    continue
-
-
-                m = re.match(r'>\s+[^\s]+\s+\(([^:]+):(\d+)\)', text)
-                if m:
-                    file = m.group(1)
-                    try:
-                        line = int(m.group(2))
-                    except Exception:
-                        line = None
-                    await handle_paused(file, line)
-                    continue
-
-                try:
-                    await ws.send_json({"type": "out", "data": text + "\n"})
-                except Exception:
-                    pass
+                buf += _strip_ansi(chunk.decode(errors="ignore"))
+                while DLV_PROMPT in buf:
+                    block, buf = buf.split(DLV_PROMPT, 1)
+                    if block.strip():
+                        await handle_block(block)
         except Exception:
             exit_event.set()
 
@@ -1595,6 +1689,9 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -1943,6 +2040,9 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -2169,6 +2269,9 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
                     proc.kill()
                 except Exception:
                     pass
+        # Signalling the docker client does not stop the container it started,
+        # so remove it explicitly; otherwise it outlives the session.
+        await remove_container(getattr(proc, "_oc_container", None))
         rc = -1
         try:
             rc = await proc.wait()
@@ -2401,6 +2504,8 @@ async def ws_run(ws: WebSocket, sid: str):
             rc = await proc.wait()
         except Exception:
             pass
+        # The killed process was the docker client; remove the container too.
+        await remove_container(getattr(proc, "_oc_container", None))
         for t in (t_out, t_err, t_wd):
             t.cancel()
         try:

@@ -314,10 +314,15 @@ def main() -> None:
         print("  end-to-end   %s ..." % lang, flush=True)
         rows.append(summarise(lang, "end_to_end_execution", time_end_to_end(lang, image)))
 
-    df = pd.DataFrame(rows)
-    df.to_csv(RESULT_DIR / "container_latency.csv", index=False)
-    print("\n=== CONTAINER LATENCY (cold start, no warm pool) ===")
-    print(df.to_string(index=False, float_format=lambda v: "%.1f" % v))
+    if not rows:
+        # --skip-latency reuses the existing file; writing an empty frame
+        # here would destroy the measurements the paper cites.
+        print("\n=== CONTAINER LATENCY: skipped, existing CSV kept ===")
+    else:
+        df = pd.DataFrame(rows)
+        df.to_csv(RESULT_DIR / "container_latency.csv", index=False)
+        print("\n=== CONTAINER LATENCY (cold start, no warm pool) ===")
+        print(df.to_string(index=False, float_format=lambda v: "%.1f" % v))
 
     mem_rows = []
     for lang, image in DOCKER_IMAGES.items():
