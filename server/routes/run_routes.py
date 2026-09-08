@@ -255,6 +255,7 @@ async def _prepare_cpp_debug_session(files: List[FileSpec], entry: str, args: li
             ]
         )
 
+        shim_cmd, container = name_container(shim_cmd)
         gdb_proc = await asyncio.create_subprocess_exec(
             *shim_cmd,
             cwd=workdir,
@@ -262,6 +263,7 @@ async def _prepare_cpp_debug_session(files: List[FileSpec], entry: str, args: li
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        setattr(gdb_proc, "_oc_container", container)
         return workdir, gdb_proc
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -333,6 +335,7 @@ async def _prepare_python_debug_session(files: List[FileSpec], entry: str, break
             entry,
         ])
 
+        cmd, container = name_container(cmd)
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workdir,
@@ -340,6 +343,7 @@ async def _prepare_python_debug_session(files: List[FileSpec], entry: str, break
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        setattr(proc, "_oc_container", container)
         return workdir, proc
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -398,6 +402,7 @@ async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoin
             entry,
         ]
 
+        cmd, container = name_container(cmd)
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workdir,
@@ -416,6 +421,7 @@ async def _prepare_js_debug_session(files: List[FileSpec], entry: str, breakpoin
             msg = (err or out or f"node debugger exited with code {rc}").decode(errors="ignore")
             raise HTTPException(status_code=500, detail=msg)
 
+        setattr(proc, "_oc_container", container)
         return workdir, proc
     except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
