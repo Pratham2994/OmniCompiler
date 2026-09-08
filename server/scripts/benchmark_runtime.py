@@ -21,7 +21,9 @@ regenerated. Requires a running Docker daemon and the omni-runner images.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
+import re
 import shutil
 import statistics
 import subprocess
@@ -63,7 +65,9 @@ HELLO = {
              "javac Hello.java && java Hello"),
 }
 
-REPEATS = 7
+REPEATS = 50
+CONCURRENCY_LEVELS = [1, 5, 10, 25]
+MEMORY_SETTLE_SECONDS = 2.0
 
 
 def docker_available() -> bool:
@@ -158,6 +162,80 @@ def time_serialization() -> Dict[str, float]:
     }
 
 
+def percentile(samples, fraction):
+    ordered = sorted(samples)
+    if not ordered:
+        return float("nan")
+    index = min(len(ordered) - 1, int(round(fraction * (len(ordered) - 1))))
+    return ordered[index]
+
+
+def measure_memory(lang: str, image: str) -> Dict[str, float]:
+    """Idle and peak memory of one paused container, read from cgroup counters.
+
+    The container runs a short sleep so that it is alive long enough to be
+    sampled, which corresponds to a session that is paused at a breakpoint
+    rather than actively executing.
+    """
+    name = "oc-mem-%s-%d" % (lang, int(time.time() * 1000))
+    cmd = (["docker", "run", "-d", "--name", name] + ISOLATION[2:]
+           + [image, "/bin/sh", "-c", "sleep 12"])
+    created = subprocess.run(cmd, capture_output=True, timeout=180)
+    if created.returncode != 0:
+        return {}
+    try:
+        time.sleep(MEMORY_SETTLE_SECONDS)
+        samples = []
+        for _ in range(6):
+            stat = subprocess.run(
+                ["docker", "stats", "--no-stream", "--format", "{{.MemUsage}}", name],
+                capture_output=True, timeout=60)
+            text = stat.stdout.decode(errors="ignore").strip()
+            match = re.match(r"([0-9.]+)\s*([KMG]i?B)", text)
+            if match:
+                value = float(match.group(1))
+                unit = match.group(2).rstrip("B").rstrip("i")
+                factor = {"K": 1 / 1024.0, "M": 1.0, "G": 1024.0}.get(unit, 1.0)
+                samples.append(value * factor)
+            time.sleep(0.6)
+        if not samples:
+            return {}
+        return {"idle_mb": statistics.median(samples),
+                "peak_mb": max(samples),
+                "samples": len(samples)}
+    finally:
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=120)
+
+
+def measure_concurrency(lang: str, image: str, level: int) -> Dict[str, float]:
+    """Wall time to provision `level` containers at once.
+
+    Reports the time for the whole batch and the mean per container, so that
+    contention is visible as the gap between the two.
+    """
+    with tempfile.TemporaryDirectory(prefix="oc-conc-") as tmp:
+        mount = "%s:/work" % Path(tmp).resolve()
+        cmd = ["docker", "run"] + ISOLATION + [
+            "-v", mount, "-w", "/work", image, "/bin/sh", "-c", "exit 0"]
+
+        def one():
+            start = time.perf_counter()
+            subprocess.run(cmd, capture_output=True, timeout=600)
+            return (time.perf_counter() - start) * 1000.0
+
+        batch_start = time.perf_counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=level) as pool:
+            durations = list(pool.map(lambda _: one(), range(level)))
+        batch_ms = (time.perf_counter() - batch_start) * 1000.0
+
+    return {"language": lang, "concurrency": level,
+            "batch_ms": batch_ms,
+            "mean_container_ms": statistics.mean(durations),
+            "median_container_ms": statistics.median(durations),
+            "p95_container_ms": percentile(durations, 0.95),
+            "max_container_ms": max(durations)}
+
+
 def summarise(lang: str, kind: str, samples: List[float]) -> Dict:
     return {
         "language": lang,
@@ -165,9 +243,11 @@ def summarise(lang: str, kind: str, samples: List[float]) -> Dict:
         "repeats": len(samples),
         "mean_ms": statistics.mean(samples),
         "median_ms": statistics.median(samples),
-        "min_ms": min(samples),
-        "max_ms": max(samples),
         "stdev_ms": statistics.stdev(samples) if len(samples) > 1 else 0.0,
+        "min_ms": min(samples),
+        "p95_ms": percentile(samples, 0.95),
+        "p99_ms": percentile(samples, 0.99),
+        "max_ms": max(samples),
     }
 
 
@@ -192,6 +272,28 @@ def main() -> None:
     df.to_csv(RESULT_DIR / "container_latency.csv", index=False)
     print("\n=== CONTAINER LATENCY (cold start, no warm pool) ===")
     print(df.to_string(index=False, float_format=lambda v: "%.1f" % v))
+
+    mem_rows = []
+    for lang, image in DOCKER_IMAGES.items():
+        print("  memory      %s ..." % lang, flush=True)
+        stats = measure_memory(lang, image)
+        if stats:
+            stats.update({"language": lang})
+            mem_rows.append(stats)
+    if mem_rows:
+        mem = pd.DataFrame(mem_rows)[["language", "idle_mb", "peak_mb", "samples"]]
+        mem.to_csv(RESULT_DIR / "container_memory.csv", index=False)
+        print("\n=== PAUSED CONTAINER MEMORY ===")
+        print(mem.to_string(index=False, float_format=lambda v: "%.1f" % v))
+
+    conc_rows = []
+    for level in CONCURRENCY_LEVELS:
+        print("  concurrency %d ..." % level, flush=True)
+        conc_rows.append(measure_concurrency("python", DOCKER_IMAGES["python"], level))
+    conc = pd.DataFrame(conc_rows)
+    conc.to_csv(RESULT_DIR / "container_concurrency.csv", index=False)
+    print("\n=== CONCURRENT PROVISIONING (python image) ===")
+    print(conc.to_string(index=False, float_format=lambda v: "%.1f" % v))
 
     ser = time_serialization()
     pd.DataFrame([ser]).to_csv(RESULT_DIR / "serialization_latency.csv", index=False)

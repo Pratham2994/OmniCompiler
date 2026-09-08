@@ -542,7 +542,8 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
             "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
             "-v", mount, "-w", "/work",
             DOCKER_IMAGES["go"],
-            "dlv", "exec", "./app", "--log",
+            "dlv", "exec", "./app",
+            "--allow-non-terminal-interactive=true",
         ]
 
 
