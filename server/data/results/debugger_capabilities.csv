@@ -1,6 +1,6 @@
 language,breakpoint,pause_location,continue,step_over,step_in,step_out,local_variables,call_stack,evaluate,stdin,exception,program_output,supported,notes
 python,True,True,True,True,True,True,True,True,True,True,False,True,11,
-javascript,True,True,True,False,True,True,True,True,True,False,True,True,10,
+javascript,True,True,True,True,True,True,True,True,True,False,True,True,11,
 java,True,True,True,True,True,True,True,True,True,False,True,True,11,
 cpp,True,True,True,True,True,True,True,True,True,False,False,True,10,
 go,True,True,True,True,True,True,True,True,True,False,False,True,10,

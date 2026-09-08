@@ -229,6 +229,24 @@ async def stepping_probe(base: str, lang: str, found: Dict[str, bool]) -> None:
                 lambda e: e.get("event") == "evaluate_result", timeout=30):
             found["evaluate"] = True
 
+        # Each stepping operation is issued from the breakpoint pause rather
+        # than from wherever the previous one happened to leave the program.
+        # Measuring them in sequence made the result order-dependent: a step
+        # over issued from a loop header advances execution but reports the
+        # same line, which is correct behaviour that the earlier ordering
+        # recorded as a failure. The breakpoint sits inside a loop, so the
+        # session can be returned to it between operations.
+        await session.send({"type": "debug_cmd", "command": "next"})
+        over = await session.collect(is_paused, timeout=45)
+        if over is not None and line_of(over) != outer_line:
+            found["step_over"] = True
+
+        await session.send({"type": "debug_cmd", "command": "continue"})
+        again = await session.collect(
+            lambda e: is_paused(e) and line_of(e) == break_line, timeout=60)
+        if again is not None:
+            found["continue"] = True
+
         await session.send({"type": "debug_cmd", "command": "step_in"})
         stepped = await session.collect(is_paused, timeout=45)
         inner = ""
@@ -242,19 +260,6 @@ async def stepping_probe(base: str, lang: str, found: Dict[str, bool]) -> None:
             back = await session.collect(is_paused, timeout=45)
             if back is not None and inner and function_of(back) != inner:
                 found["step_out"] = True
-
-        before_step = session.paused_events()[-1] if session.paused_events() else at_break
-        line_before = line_of(before_step)
-        await session.send({"type": "debug_cmd", "command": "next"})
-        over = await session.collect(is_paused, timeout=45)
-        if over is not None and line_of(over) != line_before:
-            found["step_over"] = True
-
-        await session.send({"type": "debug_cmd", "command": "continue"})
-        again = await session.collect(
-            lambda e: is_paused(e) or is_terminal(e), timeout=60)
-        if again is not None and is_paused(again):
-            found["continue"] = True
 
         await session.send({"type": "debug_cmd", "command": "stop"})
         await session.collect(is_terminal, timeout=30)
