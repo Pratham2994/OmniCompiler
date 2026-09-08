@@ -343,6 +343,8 @@ def _collect_nodes_from_text(
 
 
 
+SHORT_CIRCUIT = re.compile(r"&&|\|\||\band\b|\bor\b|\?")
+
 LOOP_TYPES = {"for", "while"}
 DECISION_TYPES = {"if", "elif", "for", "while"}
 CHAIN_TAIL_TYPES = {"elif", "else"}
@@ -363,12 +365,29 @@ class _CfgGraphBuilder:
     switch fallthrough, and exceptional control flow.
     """
 
-    def __init__(self, nodes: List[CfgNode]):
+    def __init__(self, nodes: List[CfgNode], sources: Optional[Dict[str, str]] = None):
         self.by_id: Dict[str, CfgNode] = {n.id: n for n in nodes}
         self.edges: List[CfgEdge] = []
         self.synthetic: List[CfgNode] = []
         self.loop_headers: Dict[str, CfgNode] = {}
         self._seen = set()
+        self.lines_by_file: Dict[str, List[str]] = {
+            name: (text or "").splitlines() for name, text in (sources or {}).items()
+        }
+
+    def short_circuit_count(self, node: CfgNode) -> Optional[int]:
+        """Short-circuit operators inside a node's line span.
+
+        Standard complexity tools treat each && / || / and / or / ternary as a
+        branch, because each one introduces a path the graph builder does not
+        model. Counting them lets the graph metric be compared against those
+        tools. Returns None when the file's text was not supplied.
+        """
+        lines = self.lines_by_file.get(node.file)
+        if lines is None:
+            return None
+        segment = "\n".join(lines[node.start_line - 1:node.end_line])
+        return len(SHORT_CIRCUIT.findall(segment))
 
     def add(self, source: Optional[str], target: Optional[str], kind: str = "seq") -> None:
         if not source or not target or source == target:
@@ -522,7 +541,8 @@ class _CfgGraphBuilder:
                 if nid in self.by_id and self.by_id[nid].type in DECISION_TYPES
             )
             complexity = edge_count - len(visited) + 2
-            results.append({
+            short_circuits = self.short_circuit_count(node)
+            entry = {
                 "function": node.label,
                 "file": node.file,
                 "start_line": node.start_line,
@@ -532,13 +552,24 @@ class _CfgGraphBuilder:
                 "cyclomatic": complexity,
                 "decision_points": decisions,
                 "matches_decision_rule": complexity == decisions + 1,
-            })
+            }
+            if short_circuits is not None:
+                entry["short_circuit_operators"] = short_circuits
+                entry["cyclomatic_extended"] = complexity + short_circuits
+            results.append(entry)
         return sorted(results, key=lambda r: (r["file"], r["start_line"]))
 
 
-def build_cfg_edges(nodes: List[CfgNode]) -> Tuple[List[CfgEdge], List[CfgNode], Dict[str, Any]]:
-    """Build control-flow edges, entry/exit pseudo-nodes, and graph metrics."""
-    builder = _CfgGraphBuilder(nodes)
+def build_cfg_edges(
+    nodes: List[CfgNode],
+    sources: Optional[Dict[str, str]] = None,
+) -> Tuple[List[CfgEdge], List[CfgNode], Dict[str, Any]]:
+    """Build control-flow edges, entry/exit pseudo-nodes, and graph metrics.
+
+    Supplying sources as a mapping of file name to text additionally reports
+    short_circuit_operators and cyclomatic_extended per function.
+    """
+    builder = _CfgGraphBuilder(nodes, sources=sources)
 
     contained = set()
     for node in nodes:
@@ -695,7 +726,8 @@ def build_cfg_summary(
             all_nodes.extend(file_nodes)
         if not all_nodes:
             return None
-        edges, _synthetic, metrics = build_cfg_edges(all_nodes)
+        edges, _synthetic, metrics = build_cfg_edges(
+            all_nodes, sources={name: content for name, content in files})
         summary = summarize_cfg_nodes(all_nodes, edges, metrics, max_chars=max_chars)
         if not any(b["functions"] or b["outline"] for b in summary["files"]):
             return None
@@ -747,7 +779,7 @@ def cfg_endpoint(body: CfgRequest):
         all_nodes.extend(file_nodes)
         all_warnings.extend(file_warnings)
 
-    edges, synthetic_nodes, metrics = build_cfg_edges(all_nodes)
+    edges, synthetic_nodes, metrics = build_cfg_edges(all_nodes, sources=files_map)
 
     return CfgResponse(
         status="ok",

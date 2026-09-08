@@ -1,0 +1,2 @@
+programs,total_recommended,recommended_reach_rate,random_candidate_baseline,all_line_baseline,mean_exec_count_recommended,mean_exec_count_candidates,programs_with_all_breakpoints_reached,hot_line_ratio
+12,56,1.0,0.8931878306878307,0.9424728865905337,20.537301587301588,16.152233645983646,12,1.2714836868650867

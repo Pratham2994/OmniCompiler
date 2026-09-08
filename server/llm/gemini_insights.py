@@ -17,7 +17,7 @@ except ImportError:
 
 __all__ = ["GeminiInsightError", "analyze_with_gemini"]
 
-DEFAULT_INSIGHT_MODEL = os.getenv("GOOGLE_GENAI_INSIGHT_MODEL", "gemini-2.5-flash")
+DEFAULT_INSIGHT_MODEL = os.getenv("GOOGLE_GENAI_INSIGHT_MODEL", "gemini-3.6-flash")
 INSIGHT_KEY_ENV_PRIMARY = "GOOGLE_GENAI_INSIGHT_API_KEY"
 INSIGHT_KEY_FALLBACKS = ("GOOGLE_GENAI_API_KEY", "GEMINI_API_KEY")
 

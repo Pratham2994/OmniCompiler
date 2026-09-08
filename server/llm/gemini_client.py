@@ -13,7 +13,7 @@ __all__ = [
     "translate_with_gemini",
 ]
 
-DEFAULT_MODEL = os.getenv("GOOGLE_GENAI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.getenv("GOOGLE_GENAI_MODEL", "gemini-3.6-flash")
 API_KEY_ENV_PRIMARY = "GOOGLE_GENAI_API_KEY"
 API_KEY_ENV_FALLBACK = "GEMINI_API_KEY"
 

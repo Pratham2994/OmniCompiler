@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useLanguage } from '../context/LanguageContext.jsx'
 import { Icon, ManualLanguagePicker } from '../components/run/ui.jsx'
 import { Link } from 'react-router-dom'
+import { VAPOR_MONACO_THEME, ensureVaporMonacoTheme } from '../theme/vaporMonaco.js'
 
 const nowTime = () => {
   const d = new Date()
@@ -138,11 +139,12 @@ export default function Run() {
     'vscode-dark-plus': { rootClass: ['theme-dark', 'dark'], monaco: 'vs-dark' },
     'vscode-light-plus': { rootClass: ['theme-light'], monaco: 'vs' },
     'vscode-high-contrast': { rootClass: ['theme-hc', 'dark'], monaco: 'hc-black' },
+    'vaporwave': { rootClass: ['theme-vapor', 'dark'], monaco: VAPOR_MONACO_THEME },
   }
   const [theme, setTheme] = useState(() => localStorage.getItem('oc_theme') || 'vscode-dark-plus')
   useEffect(() => {
     const root = document.documentElement
-    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'dark')
+    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'theme-vapor', 'dark')
     const conf = THEME_MAP[theme] || THEME_MAP['vscode-dark-plus']
     conf.rootClass.forEach(c => root.classList.add(c))
     localStorage.setItem('oc_theme', theme)
@@ -359,6 +361,7 @@ export default function Run() {
       return m
     }
 
+    ensureVaporMonacoTheme(monaco)
     const editor = monaco.editor.create(el, {
       value: activeFile?.content ?? '',
       language: effectiveLanguage || 'plaintext',
@@ -402,6 +405,7 @@ export default function Run() {
     const monaco = monacoRef.current
     if (!monaco) return
     const conf = THEME_MAP[theme] || THEME_MAP['vscode-dark-plus']
+    ensureVaporMonacoTheme(monaco)
     monaco.editor.setTheme(conf.monaco)
   }, [theme])
 
@@ -1487,6 +1491,16 @@ export default function Run() {
                       aria-label="High Contrast theme"
                     />
                     <span>High Contrast</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="oc-theme"
+                      checked={theme === 'vaporwave'}
+                      onChange={() => setTheme('vaporwave')}
+                      aria-label="Vaporwave theme"
+                    />
+                    <span>Vaporwave</span>
                   </label>
                 </fieldset>
               </div>

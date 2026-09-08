@@ -1,0 +1,2 @@
+metric,functions_compared,only_in_sacld,only_in_lizard,exact_agreement,within_1,within_2,mean_abs_delta,median_abs_delta,pearson_r,spearman_r,mean_sacld_extended,mean_lizard,graph_only_exact_agreement,graph_only_within_1,graph_only_pearson_r,graph_only_mean
+cyclomatic_extended (graph M plus short-circuit operators),265,27,286,0.47547169811320755,0.7433962264150943,0.8528301886792453,1.4188679245283018,1.0,0.7386079388809063,0.7355368280135229,3.920754716981132,4.607547169811321,0.4226415094339623,0.6716981132075471,0.5554258578991791,2.7245283018867923

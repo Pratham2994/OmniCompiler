@@ -1158,3 +1158,230 @@ html, body, #root {
     transform: translateX(0);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Vaporwave theme. Additive only: every rule is scoped to .theme-vapor, so the
+   light, dark and high-contrast themes are untouched.
+   --------------------------------------------------------------------------- */
+
+.theme-vapor {
+  --oc-bg: #140a2e;
+  --oc-fg: #f6ecff;
+  --oc-surface: #1c1140;
+  --oc-surface-2: #241650;
+  --oc-border: rgba(255, 145, 233, 0.22);
+
+  --oc-primary-500: #ff8fe3;
+  --oc-primary-600: #f45cd0;
+  --oc-primary-700: #d93bb4;
+
+  --oc-muted: #b9a6dd;
+  --oc-ring: var(--oc-primary-500);
+  --oc-on-primary: #2a0b3f;
+
+  --oc-success: #7cf5c8;
+  --oc-danger: #ff7a9c;
+
+  --oc-console-log: #b9a6dd;
+  --oc-console-out: #7cf5c8;
+  --oc-console-err: #ff7a9c;
+  --oc-console-in: #6ae0ff;
+
+  --oc-trace-function: #6ae0ff;
+  --oc-trace-class: #ffd98a;
+  --oc-trace-conditional: #ff8fe3;
+  --oc-trace-loop: #b39dff;
+  --oc-trace-return: #7cf5c8;
+  --oc-trace-statement: #9d8ac9;
+  --oc-trace-entry: #7cf5c8;
+  --oc-trace-exit: #ff7a9c;
+  --oc-trace-branch-true: #7cf5c8;
+  --oc-trace-branch-false: #ff7a9c;
+  --oc-trace-exception: #ff9db5;
+  --oc-trace-import: #ffd98a;
+  --oc-trace-default: #ff8fe3;
+
+  --oc-vapor-ink: rgba(8, 3, 20, 0.55);
+  --oc-vapor-lift: 0 1px 2px rgba(8, 3, 20, 0.55), 0 8px 22px rgba(8, 3, 20, 0.38);
+}
+
+/* The horizon. One authored moment: a slow-scrolling perspective grid that
+   sits behind the whole application and never intercepts a pointer. */
+.theme-vapor body {
+  background:
+    radial-gradient(1100px 620px at 50% -12%, rgba(255, 143, 227, 0.20), transparent 62%),
+    radial-gradient(820px 520px at 8% 108%, rgba(106, 224, 255, 0.16), transparent 60%),
+    radial-gradient(760px 460px at 96% 96%, rgba(179, 157, 255, 0.14), transparent 62%),
+    var(--oc-bg);
+}
+
+.theme-vapor body::before {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42vh;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 143, 227, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(106, 224, 255, 0.13) 1px, transparent 1px);
+  background-size: 100% 34px, 46px 100%;
+  transform: perspective(320px) rotateX(62deg);
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 74%);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 74%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-vapor body::before {
+    animation: oc-vapor-horizon 14s linear infinite;
+  }
+}
+
+@keyframes oc-vapor-horizon {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 34px, 0 0; }
+}
+
+.theme-vapor #root {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+/* Browser surfaces. These ship with defaults that belong to no design system. */
+.theme-vapor ::selection {
+  background: rgba(255, 143, 227, 0.38);
+  color: #ffffff;
+}
+
+.theme-vapor,
+.theme-vapor input,
+.theme-vapor textarea {
+  caret-color: var(--oc-primary-500);
+}
+
+.theme-vapor * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 143, 227, 0.45) transparent;
+}
+
+.theme-vapor ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.theme-vapor ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-vapor ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 143, 227, 0.42);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.theme-vapor ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 143, 227, 0.68);
+}
+
+.theme-vapor :focus-visible {
+  outline: 2px solid var(--oc-primary-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Execution trace. Depth comes from an offset shadow; the neon halo is the
+   world's accent layered on top of it, not a substitute for elevation. */
+.theme-vapor .oc-exec-step {
+  box-shadow: var(--oc-vapor-lift);
+}
+
+.theme-vapor .oc-exec-step-node {
+  box-shadow:
+    0 2px 6px rgba(8, 3, 20, 0.55),
+    0 0 16px color-mix(in srgb, var(--step-color, var(--oc-primary-500)) 65%, transparent);
+}
+
+.theme-vapor .oc-exec-step-num {
+  color: var(--oc-fg);
+  background: var(--oc-vapor-ink);
+  border-color: color-mix(in srgb, var(--step-color, var(--oc-primary-500)) 55%, transparent);
+}
+
+.theme-vapor .oc-exec-step-current {
+  box-shadow:
+    0 0 0 2px var(--step-color, var(--oc-primary-500)),
+    0 8px 26px rgba(8, 3, 20, 0.5),
+    0 0 26px color-mix(in srgb, var(--step-color, var(--oc-primary-500)) 45%, transparent);
+}
+
+.theme-vapor .oc-exec-step-func {
+  color: var(--oc-trace-function);
+  background: color-mix(in srgb, var(--oc-trace-function) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-trace-function) 34%, transparent);
+}
+
+.theme-vapor .oc-exec-step-code {
+  background: var(--oc-vapor-ink);
+  border-color: color-mix(in srgb, var(--step-color, var(--oc-primary-500)) 26%, transparent);
+}
+
+.theme-vapor .oc-exec-step-loc {
+  color: color-mix(in srgb, var(--oc-fg) 62%, transparent);
+}
+
+/* Primary actions carry the sunset. */
+.theme-vapor .oc-btn-primary,
+.theme-vapor .oc-btn.oc-btn-primary {
+  background-image: linear-gradient(135deg, #ff8fe3, #b39dff 52%, #6ae0ff);
+  color: var(--oc-on-primary);
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(8, 3, 20, 0.5), 0 0 18px rgba(255, 143, 227, 0.32);
+}
+
+/* AI Insights output. */
+.theme-vapor .oc-insight-card {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--oc-surface-2) 88%, transparent),
+    color-mix(in srgb, var(--oc-surface) 94%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--oc-primary-500) 24%, transparent);
+  box-shadow: var(--oc-vapor-lift);
+}
+
+.theme-vapor .oc-insight-card-title {
+  color: var(--oc-fg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.theme-vapor .oc-insight-card-accent {
+  color: var(--oc-primary-500);
+}
+
+.theme-vapor .oc-console {
+  background: #0c0520;
+  border-color: color-mix(in srgb, var(--oc-primary-500) 22%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 143, 227, 0.10), var(--oc-vapor-lift);
+}
+
+.theme-vapor .oc-toast {
+  background: var(--oc-surface-2);
+  color: var(--oc-fg);
+  border: 1px solid color-mix(in srgb, var(--oc-primary-500) 32%, transparent);
+  box-shadow: var(--oc-vapor-lift);
+}
+
+.theme-vapor .oc-input {
+  background: var(--oc-vapor-ink);
+  border-color: color-mix(in srgb, var(--oc-primary-500) 24%, transparent);
+}
+
+.theme-vapor .oc-input:focus {
+  border-color: var(--oc-primary-500);
+}

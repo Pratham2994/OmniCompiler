@@ -80,6 +80,16 @@ export default function SettingsModal({
                 />
                 <span>High Contrast</span>
               </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="oc-theme"
+                  checked={theme === 'vaporwave'}
+                  onChange={() => setTheme('vaporwave')}
+                  aria-label="Vaporwave theme"
+                />
+                <span>Vaporwave</span>
+              </label>
             </fieldset>
           </div>
 

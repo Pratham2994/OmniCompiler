@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { VAPOR_MONACO_THEME, ensureVaporMonacoTheme } from '../../theme/vaporMonaco.js'
 
 export default function useMonacoEditor({ activeFile, activeFileId, effectiveLanguage, theme, setFiles, filesLength }) {
   const editorContainerRef = useRef(null)
@@ -40,10 +41,12 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
       return m
     }
 
+    ensureVaporMonacoTheme(monaco)
     const themeName = {
       'vscode-dark-plus': 'vs-dark',
       'vscode-light-plus': 'vs',
       'vscode-high-contrast': 'hc-black',
+      'vaporwave': VAPOR_MONACO_THEME,
     }[theme] || 'vs-dark'
 
     const editor = monaco.editor.create(el, {
@@ -96,7 +99,9 @@ export default function useMonacoEditor({ activeFile, activeFileId, effectiveLan
       'vscode-dark-plus': 'vs-dark',
       'vscode-light-plus': 'vs',
       'vscode-high-contrast': 'hc-black',
+      'vaporwave': VAPOR_MONACO_THEME,
     }[theme] || 'vs-dark'
+    ensureVaporMonacoTheme(monaco)
     monaco.editor.setTheme(conf)
   }, [theme])
 

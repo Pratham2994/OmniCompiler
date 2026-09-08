@@ -15,6 +15,7 @@ import { typeColor, typeLegend } from './debug/executionTrace.js'
 import { stripExtension } from './debug/traceUtils.js'
 import { extForLang } from './debug/parseTrees.js'
 import { DebugProvider, useDebugContext } from '../context/DebugContext.jsx'
+import { VAPOR_MONACO_THEME, ensureVaporMonacoTheme } from '../theme/vaporMonaco.js'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -67,11 +68,12 @@ export default function Debug() {
     'vscode-dark-plus': { rootClass: ['theme-dark', 'dark'], monaco: 'vs-dark' },
     'vscode-light-plus': { rootClass: ['theme-light'], monaco: 'vs' },
     'vscode-high-contrast': { rootClass: ['theme-hc', 'dark'], monaco: 'hc-black' },
+    'vaporwave': { rootClass: ['theme-vapor', 'dark'], monaco: VAPOR_MONACO_THEME },
   }
   const [theme, setTheme] = useState(() => localStorage.getItem('oc_theme') || 'vscode-dark-plus')
   useEffect(() => {
     const root = document.documentElement
-    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'dark')
+    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'theme-vapor', 'dark')
     const conf = THEME_MAP[theme] || THEME_MAP['vscode-dark-plus']
     conf.rootClass.forEach(c => root.classList.add(c))
     localStorage.setItem('oc_theme', theme)

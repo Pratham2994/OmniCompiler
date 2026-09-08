@@ -10,10 +10,11 @@ import { LanguageProvider } from './context/LanguageContext.jsx'
       'vscode-dark-plus': ['theme-dark', 'dark'],
       'vscode-light-plus': ['theme-light'],
       'vscode-high-contrast': ['theme-hc', 'dark'],
+      'vaporwave': ['theme-vapor', 'dark'],
     }
     const theme = localStorage.getItem('oc_theme') || 'vscode-dark-plus'
     const root = document.documentElement
-    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'dark')
+    root.classList.remove('theme-light', 'theme-dark', 'theme-hc', 'theme-vapor', 'dark')
     ;(THEME_MAP[theme] || THEME_MAP['vscode-dark-plus']).forEach(c => root.classList.add(c))
   } catch {}
 })()
