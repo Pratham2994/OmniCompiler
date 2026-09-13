@@ -18,23 +18,35 @@ PATTERNS = {
 }
 
 FEATURE_COLS = [
-    "has_for", "has_while", "has_if", "has_else",
-    "has_indexing", "has_comparison",
-    "reason_count", "line_length",
-    "num_ops", "num_parens", "num_tokens",
+    "has_for",
+    "has_while",
+    "has_if",
+    "has_else",
+    "has_indexing",
+    "has_comparison",
+    "reason_count",
+    "line_length",
+    "num_ops",
+    "num_parens",
+    "num_tokens",
 ]
+
 
 def find_reasons(line: str):
     return [name for name, pat in PATTERNS.items() if pat.search(line)]
 
+
 def count_ops(s: str) -> int:
     return sum(s.count(ch) for ch in "+-*/%<>=!&|")
+
 
 def count_parens(s: str) -> int:
     return sum(s.count(ch) for ch in "()[]{}")
 
+
 def num_tokens(s: str) -> int:
     return len(s.split())
+
 
 def extract_features_from_line(line: str, reasons_str: str):
     reasons = [r for r in reasons_str.split(";") if r]
@@ -45,7 +57,8 @@ def extract_features_from_line(line: str, reasons_str: str):
         "has_else": int(line.strip().startswith("else")),
         "has_indexing": int("indexing" in reasons or ("[" in line and "]" in line)),
         "has_comparison": int(
-            "comparison" in reasons or any(op in line for op in ["<=", ">=", "==", "!=", "<", ">"])
+            "comparison" in reasons
+            or any(op in line for op in ["<=", ">=", "==", "!=", "<", ">"])
         ),
         "reason_count": len(reasons),
         "line_length": len(line),
@@ -53,6 +66,7 @@ def extract_features_from_line(line: str, reasons_str: str):
         "num_parens": count_parens(line),
         "num_tokens": num_tokens(line),
     }
+
 
 def select_k_from_scores(scores, base_threshold=0.5, min_k=2, max_k=256):
     n = len(scores)
@@ -64,6 +78,7 @@ def select_k_from_scores(scores, base_threshold=0.5, min_k=2, max_k=256):
     elif k > max_k:
         k = max_k
     return k
+
 
 def predict_breakpoints(go_path: Path):
     model = joblib.load(MODEL_PATH)
@@ -77,12 +92,14 @@ def predict_breakpoints(go_path: Path):
                 continue
             reasons_str = ";".join(reasons)
             feats = extract_features_from_line(line, reasons_str)
-            candidates.append({
-                "line_no": i,
-                "line": line.strip(),
-                "reasons": reasons_str,
-                **feats,
-            })
+            candidates.append(
+                {
+                    "line_no": i,
+                    "line": line.strip(),
+                    "reasons": reasons_str,
+                    **feats,
+                }
+            )
 
     if not candidates:
         print("No candidate lines found.")
@@ -109,6 +126,7 @@ def predict_breakpoints(go_path: Path):
         print(f"   {row['line']}")
         print(f"   reasons: {row['reasons']}\n")
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="Path to Go source file")
@@ -119,6 +137,7 @@ def main():
         raise SystemExit(f"File not found: {go_path}")
 
     predict_breakpoints(go_path)
+
 
 if __name__ == "__main__":
     main()
