@@ -1,8 +1,7 @@
 [project]
 name = "server"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "OmniCompiler backend: containerized multi-language execution, debugging, CFG extraction and breakpoint recommendation"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi==0.109.2",
