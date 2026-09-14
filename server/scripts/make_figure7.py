@@ -1,17 +1,34 @@
-"""Figure 7, sized for a single IEEE column.
+"""Breakpoint model comparison chart, sized for a single column.
 
 The previous regeneration was 11 inches wide and got scaled to roughly 3.4
 inches on the page, shrinking every label by a factor of three. This version
 is drawn near its final printed size with correspondingly larger type, at
 300 dpi, so nothing is downsampled into softness.
+
+Writes both a PDF (vector, what the manuscript should include) and a PNG
+(for previewing). Set OMNI_FIG_DIR to the manuscript directory; it defaults
+to a sibling checkout of the paper next to this repository.
+
+Usage:
+    OMNI_FIG_DIR=/path/to/manuscript python scripts/make_figure7.py
 """
+import os
 import pathlib
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-OUT = pathlib.Path(r"D:\02_Code\Omni_Paper\Structurally_Anchored_Framework_for_Cross_Language_Debugging__Language_Agnostic_Code_Execution_and_Intelligent_Debugging\Fig. 7.png")
+# The figure was renumbered from 7 to 6 when the unused first figure was
+# dropped from the manuscript, so the basename is configurable too.
+FIG_DIR = pathlib.Path(os.environ.get(
+    "OMNI_FIG_DIR",
+    pathlib.Path(__file__).resolve().parents[3]
+    / "Structurally_Anchored_Framework_for_Cross_Language_Debugging"
+      "__Language_Agnostic_Code_Execution_and_Intelligent_Debugging",
+))
+STEM = os.environ.get("OMNI_FIG_STEM", "Fig. 6")
+OUT = FIG_DIR / (STEM + ".png")
 
 metrics = ["Accuracy", "Precision", "Recall", "F1-Score"]
 series = [
@@ -49,9 +66,14 @@ ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.16), ncol=3,
           columnspacing=1.4)
 
 fig.tight_layout()
+# PDF first: it is vector, so it stays sharp at any zoom and is what the
+# manuscript should \includegraphics. The PNG is kept for quick previewing.
+OUT_PDF = OUT.with_suffix(".pdf")
+fig.savefig(OUT_PDF, bbox_inches="tight", facecolor="white")
 fig.savefig(OUT, bbox_inches="tight", facecolor="white")
 
 from PIL import Image
 im = Image.open(OUT)
+print("wrote %s (vector)" % OUT_PDF.name)
 print("wrote %s  %dx%d px" % (OUT.name, im.width, im.height))
 print("printed at 3.4 in column width -> effective %d dpi" % round(im.width / 3.4))

@@ -17,6 +17,13 @@ dependencies = [
     "websockets>=13,<15",
 ]
 
+[project.optional-dependencies]
+# Only scripts/make_figure7.py needs these; the server itself does not.
+figures = [
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+]
+
 [project.scripts]
 server = "server:main"
 
