@@ -13,14 +13,14 @@ under it. Every run happens in its own short-lived Docker container.
 | Debugger actions that work in all five languages | 10 of 12 |
 | Language detection, on a set with text made to fool it | 0 wrong |
 | Breakpoint suggestions, Random Forest | F1 0.86 |
-| Starting a clean container | about 300 ms |
+| Starting a clean container | about 300 ms |em
 
 A paper on this work is submitted and under review.
 
 ## What it does
 - Detects language from arbitrary snippets (chunked, ambiguity-aware, prefers plain/unknown over wrong guesses).
 - Runs code inside per-language Docker sandboxes; streams stdout/stderr and stdin.
-- Debugs all five languages — Python, C++, Java, JavaScript, and Go — through one client-facing event model. Python, C++, Java, and JavaScript are driven by in-container shims speaking a lightweight, DAP-inspired JSON protocol; Go is driven by the backend directly over the Delve (`dlv`) console, whose output is parsed into the same event set. Measured coverage per language is in `server/data/results/debugger_capabilities.csv`.
+- Debugs all five languages - Python, C++, Java, JavaScript, and Go - through one client-facing event model. Python, C++, Java, and JavaScript are driven by in-container shims speaking a lightweight, DAP-inspired JSON protocol; Go is driven by the backend directly over the Delve (`dlv`) console, whose output is parsed into the same event set. Measured coverage per language is in `server/data/results/debugger_capabilities.csv`.
 - Builds intra-procedural control-flow graphs (nodes, branch/loop/back edges, per-function cyclomatic complexity) and visual execution timelines with cross-file import annotations.
 - Anchors Gemini translation and analysis prompts with the extracted CFG summary, so the model receives explicit control-flow structure alongside the source text.
 - Translates code between languages (and to annotated assembly) using Gemini with strict structure/behavior-preserving prompts.
@@ -47,7 +47,7 @@ A paper on this work is submitted and under review.
 
 - **Execution & Debugging Layer**
   - Per-language Docker images mount `/work`, inject a debugger shim, and run entrypoints.
-  - Custom JSON-over-stdio protocol (continue/step/set_breakpoints/evaluate/stdin/stop; stopped/exception/breakpoints_set/await_input/evaluate_result/output/terminated). It borrows DAP's event vocabulary and request/response shape but carries no sequence numbers, `Content-Length` framing, or capabilities handshake — it is DAP-inspired, not DAP-compatible, and will not talk to a DAP client.
+  - Custom JSON-over-stdio protocol (continue/step/set_breakpoints/evaluate/stdin/stop; stopped/exception/breakpoints_set/await_input/evaluate_result/output/terminated). It borrows DAP's event vocabulary and request/response shape but carries no sequence numbers, `Content-Length` framing, or capabilities handshake - it is DAP-inspired, not DAP-compatible, and will not talk to a DAP client.
   - Backend holds the container process, bridges to WebSocket `/ws/debug/{session}`, streams events to the frontend.
 
 - **CFG + Execution Trace**
@@ -107,14 +107,14 @@ python scripts/evaluate_prompt_anchoring.py
 python scripts/anchoring_significance.py
 ```
 
-- `eval_detector.py` — regression harness for the detector (hand-written cases including adversarial non-code negatives).
-- `evaluate_detector.py` — ablation of regex-only vs Pygments-only vs the hybrid pipeline, on curated, truncation-augmented, and length-scaled corpora. Reports correct / abstained / misidentified separately, because declining to guess is the intended behaviour on fragments that no longer carry language evidence.
-- `evaluate_breakpoint_heuristic.py` — breakpoint component under leave-file-out grouped cross-validation. Note that `label_multilang_candidates.py` derives the label from the same `reasons` field that most features encode, so the script reports the shipped feature set alongside a leak-free lexical subset, and states the labelling rule's own reproduction rate. It also measures cross-language consistency over the parallel corpus (the same 15 problems in all five languages).
-- `evaluate_breakpoint_utility.py` — scores recommendations against a line tracer: what fraction of recommended lines actually execute, and how much more often they execute than the candidate pool.
-- `validate_cyclomatic.py` — compares the CFG-derived cyclomatic complexity against `lizard`, an independent multi-language analyser, with and without the short-circuit-operator adjustment.
-- `evaluate_debugger_capabilities.py` — drives a real debug session per language over the WebSocket data plane and records which of the twelve capabilities appear in the event stream. This is the script behind the paper's central claim. **Requires a running Docker daemon and the `omni-runner:*` images.**
-- `benchmark_runtime.py` — cold container provisioning, end-to-end execution per language, paused-session memory, concurrent provisioning, and debugger event serialization cost. **Requires a running Docker daemon and the `omni-runner:*` images.**
-- `evaluate_prompt_anchoring.py` / `anchoring_significance.py` — the CFG-anchored vs. raw-text prompting comparison and its McNemar/Wilcoxon tests. **Requires a Gemini API key**; the 192 committed translations under `server/data/results/translations/` let you inspect the outputs without re-running.
+- `eval_detector.py` - regression harness for the detector (hand-written cases including adversarial non-code negatives).
+- `evaluate_detector.py` - ablation of regex-only vs Pygments-only vs the hybrid pipeline, on curated, truncation-augmented, and length-scaled corpora. Reports correct / abstained / misidentified separately, because declining to guess is the intended behaviour on fragments that no longer carry language evidence.
+- `evaluate_breakpoint_heuristic.py` - breakpoint component under leave-file-out grouped cross-validation. Note that `label_multilang_candidates.py` derives the label from the same `reasons` field that most features encode, so the script reports the shipped feature set alongside a leak-free lexical subset, and states the labelling rule's own reproduction rate. It also measures cross-language consistency over the parallel corpus (the same 15 problems in all five languages).
+- `evaluate_breakpoint_utility.py` - scores recommendations against a line tracer: what fraction of recommended lines actually execute, and how much more often they execute than the candidate pool.
+- `validate_cyclomatic.py` - compares the CFG-derived cyclomatic complexity against `lizard`, an independent multi-language analyser, with and without the short-circuit-operator adjustment.
+- `evaluate_debugger_capabilities.py` - drives a real debug session per language over the WebSocket data plane and records which of the twelve capabilities appear in the event stream. This is the script behind the paper's central claim. **Requires a running Docker daemon and the `omni-runner:*` images.**
+- `benchmark_runtime.py` - cold container provisioning, end-to-end execution per language, paused-session memory, concurrent provisioning, and debugger event serialization cost. **Requires a running Docker daemon and the `omni-runner:*` images.**
+- `evaluate_prompt_anchoring.py` / `anchoring_significance.py` - the CFG-anchored vs. raw-text prompting comparison and its McNemar/Wilcoxon tests. **Requires a Gemini API key**; the 192 committed translations under `server/data/results/translations/` let you inspect the outputs without re-running.
 
 ## Status
 Active development. The scripts above are the automated checks wired into this repo; there is no unit-test suite. Use the sample programs in `server/oc_docker/test_code/` to sanity-check language pipelines.
