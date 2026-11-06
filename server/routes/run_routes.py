@@ -610,9 +610,34 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
         raise
 
 
+# A session is used by exactly one WebSocket. A debug session already has its
+# container running, so one whose WebSocket never arrives (tab closed, network
+# error) would keep the container, the temp dir and the files in memory forever.
+UNATTACHED_TTL_S = 120
+
+
+async def _reap_unattached(now: float) -> None:
+    """Stop and forget sessions that were created but never attached."""
+    for sid, sess in list(SESSIONS.items()):
+        if now - sess.get("created_at", now) < UNATTACHED_TTL_S:
+            continue
+        SESSIONS.pop(sid, None)
+        proc = sess.get("proc")
+        if proc is not None:
+            if proc.returncode is None:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+            await remove_container(getattr(proc, "_oc_container", None))
+        if sess.get("workdir"):
+            shutil.rmtree(sess["workdir"], ignore_errors=True)
+
+
 @router.post("/run", response_model=RunResp)
 async def create_run(request: Request, body: RunReq) -> RunResp:
     _validate_request(body)
+    await _reap_unattached(time.time())
 
     lang = (body.lang or "").strip().lower()
     mode = (body.mode or "run").strip().lower() or "run"

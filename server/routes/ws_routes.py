@@ -2293,7 +2293,8 @@ async def _handle_go_debug(ws: WebSocket, sess: dict):
 async def ws_run(ws: WebSocket, sid: str):
     await ws.accept()
 
-    sess = SESSIONS.get(sid)
+    # One WebSocket per session: taking it out also frees its files from memory.
+    sess = SESSIONS.pop(sid, None)
     if not sess:
         await ws.send_json({"type":"err","data":"invalid session_id"})
         return await ws.close()
