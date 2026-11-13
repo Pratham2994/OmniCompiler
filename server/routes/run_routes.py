@@ -233,7 +233,7 @@ async def _prepare_cpp_debug_session(files: List[FileSpec], entry: str, args: li
             "256",
             "--cap-add=SYS_PTRACE",
             "--security-opt",
-            "seccomp=unconfined",
+            "no-new-privileges",
             "-v",
             mount,
             "-w",
@@ -499,7 +499,7 @@ async def _prepare_java_debug_session(files: List[FileSpec], entry: str, args: l
         shim_cmd = [
             "docker", "run", "--rm", "-i",
             "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
-            "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
+            "--security-opt", "no-new-privileges",
             "-v", mount, "-w", "/work",
             "-e", f"OC_INIT_BPS={init_bp_env}",
         ]
@@ -579,7 +579,7 @@ async def _prepare_go_debug_session(files: List[FileSpec], entry: str, breakpoin
         dlv_cmd = [
             "docker", "run", "--rm", "-i",
             "--network", "none", "--cpus", "1", "--memory", "512m", "--pids-limit", "256",
-            "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
+            "--cap-add=SYS_PTRACE", "--security-opt", "no-new-privileges",
             "-v", mount, "-w", "/work",
             DOCKER_IMAGES["go"],
             "dlv", "exec", "./app",
